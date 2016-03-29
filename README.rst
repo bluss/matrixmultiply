@@ -25,8 +25,18 @@ __ http://bluss.github.io/matrixmultiply/
 .. |crates| image:: http://meritbadge.herokuapp.com/matrixmultiply
 .. _crates: https://crates.io/crates/matrixmultiply
 
+**NOTE: Compile this crate using** ``RUSTFLAGS="-C target-cpu=native"`` **so
+that the compiler can produce the best output.**
+
 Recent Changes
 --------------
+
+- 0.1.2
+
+  - Major performance improvement for sgemm and dgemm (20-30% when using AVX).
+    Since it all depends on what the optimizer does, I'd love to get
+    issue reports that report good or bad performance.
+  - Made the kernel masking generic, which is a cleaner design
 
 - 0.1.1
 

@@ -40,7 +40,7 @@ pub unsafe fn sgemm(
         a, rsa, csa,
         b, rsb, csb,
         beta,
-        c, rsc, csc, 0., 1.)
+        c, rsc, csc)
 }
 
 /// General matrix multiplication (f64)
@@ -73,7 +73,7 @@ pub unsafe fn dgemm(
         a, rsa, csa,
         b, rsb, csb,
         beta,
-        c, rsc, csc, 0., 1.)
+        c, rsc, csc)
 }
 
 unsafe fn gemm_loop<K>(
@@ -82,8 +82,7 @@ unsafe fn gemm_loop<K>(
     a: *const K::Elem, rsa: isize, csa: isize,
     b: *const K::Elem, rsb: isize, csb: isize,
     beta: K::Elem,
-    c: *mut K::Elem, rsc: isize, csc: isize,
-    zero: K::Elem, one: K::Elem)
+    c: *mut K::Elem, rsc: isize, csc: isize)
     where K: GemmKernel
 {
     let knc = K::nc();
@@ -108,23 +107,23 @@ unsafe fn gemm_loop<K>(
             dprint!("LOOP 4, {}, kc={}", l4, kc);
             let b = b.stride_offset(rsb, kkc * l4);
             let a = a.stride_offset(csa, kkc * l4);
-            debug!(for elt in &mut bpack { *elt = one; });
+            debug!(for elt in &mut bpack { *elt = <_>::one(); });
 
             // Pack B -> B~
-            pack::<K>(kc, nc, bpp, b, csb, rsb, zero);
+            pack::<K>(kc, nc, bpp, b, csb, rsb);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
                 dprint!("LOOP 3, {}, mc={}", l3, mc);
                 let a = a.stride_offset(rsa, kmc * l3);
                 let c = c.stride_offset(rsc, kmc * l3);
-                debug!(for elt in &mut apack { *elt = one; });
+                debug!(for elt in &mut apack { *elt = <_>::one(); });
 
                 // Pack A -> A~
-                pack::<K>(kc, mc, app, a, rsa, csa, zero);
+                pack::<K>(kc, mc, app, a, rsa, csa);
 
                 // First time writing to C, use user's `beta`, else accumulate
-                let betap = if l4 == 0 { beta } else { one };
+                let betap = if l4 == 0 { beta } else { <_>::one() };
 
                 // LOOP 2 and 1
                 gemm_packed::<K>(nc, kc, mc,
@@ -207,11 +206,11 @@ unsafe fn vec_uninit<U>(maximal: usize, kc: usize, k: usize, nn: usize) -> Vec<U
 /// + csa: column stride
 /// + zero: zero element to pad with
 unsafe fn pack<K>(kc: usize, mc: usize, pack: *mut K::Elem,
-                  a: *const K::Elem, rsa: isize, csa: isize,
-                  zero: K::Elem)
+                  a: *const K::Elem, rsa: isize, csa: isize)
     where K: GemmKernel,
 {
     let mr = K::mr();
+    let zero = <_>::zero();
     debug_assert_eq!(K::mr(), K::nr());
 
     let mut pack = pack;

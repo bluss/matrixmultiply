@@ -7,18 +7,21 @@ trait Float : Copy + Display + Debug + PartialEq {
     fn zero() -> Self;
     fn one() -> Self;
     fn from(i64) -> Self;
+    fn nan() -> Self;
 }
 
 impl Float for f32 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
     fn from(x: i64) -> Self { x as Self }
+    fn nan() -> Self { 0./0. }
 }
 
 impl Float for f64 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
     fn from(x: i64) -> Self { x as Self }
+    fn nan() -> Self { 0./0. }
 }
 
 
@@ -212,7 +215,8 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
     let mut a = vec![F::zero(); m * k]; 
     let mut b = vec![F::zero(); k * n];
     let mut c1 = vec![F::one(); m * n];
-    let mut c2 = vec![F::zero(); m * n];
+    let mut c2 = vec![F::nan(); m * n];
+    // init c2 with NaN to test the overwriting behavior when beta = 0.
 
     for (i, elt) in a.iter_mut().enumerate() {
         *elt = F::from(i as i64);

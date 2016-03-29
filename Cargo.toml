@@ -12,4 +12,7 @@ description = "General matrix multiplication of f32 and f64 matrices in Rust. Su
 
 keywords = ["matrix", "sgemm", "dgemm", "blas"]
 
+[lib]
+bench = false
+
 [dependencies]

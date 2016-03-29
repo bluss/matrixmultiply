@@ -105,6 +105,9 @@ fn test_gemm<F>() where F: Gemm + Float {
         }
     }
     test_mul_id_with::<F>(266, 265, false);
+    test_scale::<F>(4, 4, 4, true);
+    test_scale::<F>(19, 20, 16, true);
+    test_scale::<F>(150, 140, 128, false);
 }
 
 /// multiply a M x N matrix with an N x N id matrix
@@ -199,4 +202,74 @@ fn test_mul_id_with<F>(k: usize, n: usize, small: bool)
         }
     }
     println!("passed id with matrix input K={}, N={}", k, n);
+}
+
+#[cfg(test)]
+fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
+    where F: Gemm + Float
+{
+    let (m, k, n) = (m, k, n);
+    let mut a = vec![F::zero(); m * k]; 
+    let mut b = vec![F::zero(); k * n];
+    let mut c1 = vec![F::one(); m * n];
+    let mut c2 = vec![F::zero(); m * n];
+
+    for (i, elt) in a.iter_mut().enumerate() {
+        *elt = F::from(i as i64);
+    }
+    for (i, elt) in b.iter_mut().enumerate() {
+        *elt = F::from(i as i64);
+    }
+
+    unsafe {
+        // 4 A B
+        F::gemm(
+            m, k, n,
+            F::from(3),
+            a.as_ptr(), k as isize, 1,
+            b.as_ptr(), n as isize, 1,
+            F::zero(),
+            c1.as_mut_ptr(), n as isize, 1,
+        );
+
+        // A B 
+        F::gemm(
+            m, k, n,
+            F::one(),
+            a.as_ptr(), k as isize, 1,
+            b.as_ptr(), n as isize, 1,
+            F::zero(),
+            c2.as_mut_ptr(), n as isize, 1,
+        );
+        // (2 A B) + A B
+        F::gemm(
+            m, k, n,
+            F::one(),
+            a.as_ptr(), k as isize, 1,
+            b.as_ptr(), n as isize, 1,
+            F::from(2),
+            c2.as_mut_ptr(), n as isize, 1,
+        );
+    }
+    for (i, (x, y)) in c1.iter().zip(&c2).enumerate() {
+        if x != y {
+            if k != 0 && n != 0 && small {
+                for row in a.chunks(k) {
+                    println!("{:?}", row);
+                }
+                for row in b.chunks(n) {
+                    println!("{:?}", row);
+                }
+                for row in c1.chunks(n) {
+                    println!("{:?}", row);
+                }
+                for row in c2.chunks(n) {
+                    println!("{:?}", row);
+                }
+            }
+            panic!("mismatch at index={}, x: {}, y: {} (matrix input M={}, N={})",
+                   i, x, y, m, n);
+        }
+    }
+    println!("passed matrix with id input M={}, N={}", m, n);
 }

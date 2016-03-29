@@ -1,0 +1,12 @@
+[package]
+name = "matrixmultiply-asm"
+version = "0.1.0"
+authors = ["bluss"]
+
+build = "build.rs"
+
+[build-dependencies]
+gcc = { version = "0.3.26" }
+
+[dependencies]
+

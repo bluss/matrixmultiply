@@ -20,6 +20,7 @@ name = "benchmarks"
 harness = false
 
 [dependencies]
+matrixmultiply-asm = { version = "0.1", optional = true, path = "matrixmultiply-asm" }
 
 [dev-dependencies]
 bencher = "0.1.1"

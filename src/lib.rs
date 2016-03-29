@@ -50,15 +50,27 @@
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.1/")]
 
+#[cfg(feature="matrixmultiply-asm")]
+extern crate matrixmultiply_asm;
+
 #[macro_use] mod debugmacros;
 #[macro_use] mod loopmacros;
 mod archparam;
 mod kernel;
 mod gemm;
-mod sgemm_kernel;
-mod dgemm_kernel;
 mod pointer;
 mod util;
+
+#[cfg(feature="matrixmultiply-asm")]
+#[path="sgemm_kernel_avx.rs"]
+pub mod sgemm_kernel;
+#[cfg(not(feature="matrixmultiply-asm"))]
+pub mod sgemm_kernel;
+#[cfg(feature="matrixmultiply-asm")]
+#[path="dgemm_kernel_avx.rs"]
+pub mod dgemm_kernel;
+#[cfg(not(feature="matrixmultiply-asm"))]
+pub mod dgemm_kernel;
 
 pub use gemm::sgemm;
 pub use gemm::dgemm;

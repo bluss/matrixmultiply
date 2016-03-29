@@ -47,3 +47,28 @@ pub trait GemmKernel {
         c: *mut Self::Elem, rsc: isize, csc: isize,
         nr_: usize, mr_: usize);
 }
+
+pub trait Element : Copy {
+    fn zero() -> Self;
+    fn one() -> Self;
+    fn is_zero(&self) -> bool;
+    fn scale_by(&mut self, x: Self);
+}
+
+impl Element for f32 {
+    fn zero() -> Self { 0. }
+    fn one() -> Self { 1. }
+    fn is_zero(&self) -> bool { *self == 0. }
+    fn scale_by(&mut self, x: Self) {
+        *self *= x;
+    }
+}
+
+impl Element for f64 {
+    fn zero() -> Self { 0. }
+    fn one() -> Self { 1. }
+    fn is_zero(&self) -> bool { *self == 0. }
+    fn scale_by(&mut self, x: Self) {
+        *self *= x;
+    }
+}

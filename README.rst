@@ -25,3 +25,9 @@ __ http://bluss.github.io/matrixmultiply/
 .. |crates| image:: http://meritbadge.herokuapp.com/matrixmultiply
 .. _crates: https://crates.io/crates/matrixmultiply
 
+Recent Changes
+--------------
+
+- 0.1.1
+
+  - Minor improvement in the kernel

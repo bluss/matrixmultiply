@@ -12,16 +12,18 @@ use dgemm_kernel;
 ///
 /// C ← α A B + β C
 ///
-/// + A: m by k
-/// + B: k by n
-/// + C: m by n
-/// + rsx: row stride of *x*
-/// + csx: col stride of *x*
+/// + m, k, n: dimensions
+/// + a, b, c: pointer to the first element in the matrix
+/// + A: m by k matrix
+/// + B: k by n matrix
+/// + C: m by n matrix
+/// + rs<em>x</em>: row stride of *x*
+/// + cs<em>x</em>: col stride of *x*
 ///
 /// Strides for A and B may be arbitrary. Strides for C must not result in
-/// elements that alias each other, in particular, they can not be zero.
+/// elements that alias each other, for example they can not be zero.
 ///
-/// If `beta` is `0.`, then C does not need to be initialized.
+/// If β is zero, then C does not need to be initialized.
 pub unsafe fn sgemm(
     m: usize, k: usize, n: usize,
     alpha: f32,
@@ -43,16 +45,18 @@ pub unsafe fn sgemm(
 ///
 /// C ← α A B + β C
 ///
-/// + A: m by k
-/// + B: k by n
-/// + C: m by n
-/// + rsx: row stride of *x*
-/// + csx: col stride of *x*
+/// + m, k, n: dimensions
+/// + a, b, c: pointer to the first element in the matrix
+/// + A: m by k matrix
+/// + B: k by n matrix
+/// + C: m by n matrix
+/// + rs<em>x</em>: row stride of *x*
+/// + cs<em>x</em>: col stride of *x*
 ///
 /// Strides for A and B may be arbitrary. Strides for C must not result in
-/// elements that alias each other, in particular, they can not be zero.
+/// elements that alias each other, for example they can not be zero.
 ///
-/// If `beta` is `0.`, then C does not need to be initialized.
+/// If β is zero, then C does not need to be initialized.
 pub unsafe fn dgemm(
     m: usize, k: usize, n: usize,
     alpha: f64,

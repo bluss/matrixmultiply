@@ -20,6 +20,7 @@ mod kernel;
 mod gemm;
 mod sgemm_kernel;
 mod dgemm_kernel;
+mod pointer;
 mod util;
 
 pub use gemm::sgemm;

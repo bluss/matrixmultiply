@@ -5,6 +5,7 @@ use util::range_chunk;
 use util::round_up_to;
 
 use kernel::GemmKernel;
+use kernel::Element;
 use sgemm_kernel;
 use dgemm_kernel;
 use pointer::PointerExt;
@@ -39,7 +40,7 @@ pub unsafe fn sgemm(
         a, rsa, csa,
         b, rsb, csb,
         beta,
-        c, rsc, csc, 0., 1.)
+        c, rsc, csc)
 }
 
 /// General matrix multiplication (f64)
@@ -72,7 +73,7 @@ pub unsafe fn dgemm(
         a, rsa, csa,
         b, rsb, csb,
         beta,
-        c, rsc, csc, 0., 1.)
+        c, rsc, csc)
 }
 
 unsafe fn gemm_loop<K>(
@@ -81,8 +82,7 @@ unsafe fn gemm_loop<K>(
     a: *const K::Elem, rsa: isize, csa: isize,
     b: *const K::Elem, rsb: isize, csb: isize,
     beta: K::Elem,
-    c: *mut K::Elem, rsc: isize, csc: isize,
-    zero: K::Elem, one: K::Elem)
+    c: *mut K::Elem, rsc: isize, csc: isize)
     where K: GemmKernel
 {
     let knc = K::nc();
@@ -92,6 +92,8 @@ unsafe fn gemm_loop<K>(
                                k, round_up_to(m, K::mr()));
     let mut bpack = vec_uninit(K::kc() * K::nc(), K::kc(),
                                min(k, K::kc()), round_up_to(n, K::nr()));
+    let app = apack.as_mut_ptr();
+    let bpp = bpack.as_mut_ptr();
     dprint!("pack len: {}", apack.len());
 
     // LOOP 5: split n into nc parts
@@ -105,28 +107,28 @@ unsafe fn gemm_loop<K>(
             dprint!("LOOP 4, {}, kc={}", l4, kc);
             let b = b.stride_offset(rsb, kkc * l4);
             let a = a.stride_offset(csa, kkc * l4);
-            debug!(for elt in &mut bpack { *elt = one; });
+            debug!(for elt in &mut bpack { *elt = <_>::one(); });
 
             // Pack B -> B~
-            pack::<K>(kc, nc, bpack.as_mut_ptr(), b, csb, rsb, zero);
+            pack::<K>(kc, nc, bpp, b, csb, rsb);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
                 dprint!("LOOP 3, {}, mc={}", l3, mc);
                 let a = a.stride_offset(rsa, kmc * l3);
                 let c = c.stride_offset(rsc, kmc * l3);
-                debug!(for elt in &mut apack { *elt = one; });
+                debug!(for elt in &mut apack { *elt = <_>::one(); });
 
                 // Pack A -> A~
-                pack::<K>(kc, mc, apack.as_mut_ptr(), a, rsa, csa, zero);
+                pack::<K>(kc, mc, app, a, rsa, csa);
 
                 // First time writing to C, use user's `beta`, else accumulate
-                let betap = if l4 == 0 { beta } else { one };
+                let betap = if l4 == 0 { beta } else { <_>::one() };
 
                 // LOOP 2 and 1
                 gemm_packed::<K>(nc, kc, mc,
                                  alpha,
-                                 apack.as_ptr(), bpack.as_ptr(),
+                                 app, bpp,
                                  betap,
                                  c, rsc, csc);
             }
@@ -150,26 +152,35 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 {
     let mr = K::mr();
     let nr = K::nr();
+    // FIXME: make mask_buf a vec when we need it
+    assert_eq!(mr, 4);
+    assert_eq!(nr, 4);
+    let mut mask_buf = [[<_>::zero(); 4]; 4];
 
     // LOOP 2: through micropanels in packed `b`
     for (l2, nr_) in range_chunk(nc, nr) {
+        dprint!("LOOP 2, {}, nr_={}", l2, nr_);
         let bpp = bpp.stride_offset(kc as isize, nr * l2);
         let c = c.stride_offset(csc, nr * l2);
 
         // LOOP 1: through micropanels in packed `a` while `b` is constant
         for (l1, mr_) in range_chunk(mc, mr) {
+            dprint!("LOOP 1, {}, mr_={}", l1, mr_);
             let app = app.stride_offset(kc as isize, mr * l1);
             let c = c.stride_offset(rsc, mr * l1);
 
-            if nr_ < nr || mr_ < mr {
-                K::kernel_masked(kc, alpha, &*app, &*bpp,
-                                 beta, &mut *c, rsc, csc,
-                                 mr_, nr_);
+            // GEMM KERNEL
+            // NOTE: For the moment, it performs better to simply
+            // always use the masked kernel function!
+            // if nr_ < nr || mr_ < mr {
+            {
+                masked_kernel::<_, K>(kc, alpha, &*app, &*bpp,
+                                      beta, &mut *c, rsc, csc,
+                                      mr_, nr_, &mut mask_buf[0][0]);
                 continue;
             }
 
-            // GEMM KERNEL
-            K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
+            // K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
         }
     }
 }
@@ -195,11 +206,11 @@ unsafe fn vec_uninit<U>(maximal: usize, kc: usize, k: usize, nn: usize) -> Vec<U
 /// + csa: column stride
 /// + zero: zero element to pad with
 unsafe fn pack<K>(kc: usize, mc: usize, pack: *mut K::Elem,
-                  a: *const K::Elem, rsa: isize, csa: isize,
-                  zero: K::Elem)
+                  a: *const K::Elem, rsa: isize, csa: isize)
     where K: GemmKernel,
 {
     let mr = K::mr();
+    let zero = <_>::zero();
     debug_assert_eq!(K::mr(), K::nr());
 
     let mut pack = pack;
@@ -232,4 +243,40 @@ unsafe fn pack<K>(kc: usize, mc: usize, pack: *mut K::Elem,
     }
 }
 
-
+/// Call the GEMM kernel with a "masked" output C.
+/// 
+/// Simply redirect the MR by NR kernel output to the passed
+/// in `mask_buf`, and copy the non masked region to the real
+/// C.
+///
+/// + rows: rows of kernel unmasked
+/// + cols: cols of kernel unmasked
+#[inline(never)]
+unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
+                              a: *const T,
+                              b: *const T,
+                              beta: T,
+                              c: *mut T, rsc: isize, csc: isize,
+                              rows: usize, cols: usize,
+                              mask_buf: *mut T)
+    where K: GemmKernel<Elem=T>, T: Element,
+{
+    let mr = K::mr();
+    let nr = K::nr();
+    K::kernel(k, T::one(), a, b, T::zero(), mask_buf, mr as isize , 1);
+    let mut ab = mask_buf;
+    for i in 0..mr {
+        for j in 0..nr {
+            if i < rows && j < cols {
+                let cptr = c.offset(rsc * i as isize + csc * j as isize);
+                if beta.is_zero() {
+                    *cptr = T::zero(); // initialize C
+                } else {
+                    (*cptr).scale_by(beta);
+                }
+                (*cptr).scaled_add(alpha, *ab);
+            }
+            ab.inc();
+        }
+    }
+}

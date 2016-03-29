@@ -122,6 +122,7 @@ fn test_mul_with_id<F>(m: usize, n: usize, small: bool)
     let mut a = vec![F::zero(); m * k]; 
     let mut b = vec![F::zero(); k * n];
     let mut c = vec![F::zero(); m * n];
+    println!("test matrix with id input M={}, N={}", m, n);
 
     for (i, elt) in a.iter_mut().enumerate() {
         *elt = F::from(i as i64);

@@ -1,7 +1,7 @@
 
 /// General matrix multiply kernel
 pub trait GemmKernel {
-    type Elem: Copy;
+    type Elem: Element;
 
     /// align inputs to this
     ///
@@ -36,16 +36,6 @@ pub trait GemmKernel {
         b: *const Self::Elem,
         beta: Self::Elem,
         c: *mut Self::Elem, rsc: isize, csc: isize);
-
-    /// Masked (partial) kernel
-    unsafe fn kernel_masked(
-        k: usize,
-        alpha: Self::Elem,
-        a: *const Self::Elem,
-        b: *const Self::Elem,
-        beta: Self::Elem,
-        c: *mut Self::Elem, rsc: isize, csc: isize,
-        nr_: usize, mr_: usize);
 }
 
 pub trait Element : Copy {
@@ -53,6 +43,7 @@ pub trait Element : Copy {
     fn one() -> Self;
     fn is_zero(&self) -> bool;
     fn scale_by(&mut self, x: Self);
+    fn scaled_add(&mut self, alpha: Self, a: Self);
 }
 
 impl Element for f32 {
@@ -62,6 +53,9 @@ impl Element for f32 {
     fn scale_by(&mut self, x: Self) {
         *self *= x;
     }
+    fn scaled_add(&mut self, alpha: Self, a: Self) {
+        *self += alpha * a;
+    }
 }
 
 impl Element for f64 {
@@ -70,5 +64,8 @@ impl Element for f64 {
     fn is_zero(&self) -> bool { *self == 0. }
     fn scale_by(&mut self, x: Self) {
         *self *= x;
+    }
+    fn scaled_add(&mut self, alpha: Self, a: Self) {
+        *self += alpha * a;
     }
 }

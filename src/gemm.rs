@@ -5,6 +5,7 @@ use util::range_chunk;
 use util::round_up_to;
 
 use kernel::GemmKernel;
+use kernel::Element;
 use sgemm_kernel;
 use dgemm_kernel;
 use pointer::PointerExt;
@@ -150,6 +151,7 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 {
     let mr = K::mr();
     let nr = K::nr();
+    let mut mask_buf = [[<_>::zero(); 4]; 4];
 
     // LOOP 2: through micropanels in packed `b`
     for (l2, nr_) in range_chunk(nc, nr) {
@@ -162,9 +164,9 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
             let c = c.stride_offset(rsc, mr * l1);
 
             if nr_ < nr || mr_ < mr {
-                K::kernel_masked(kc, alpha, &*app, &*bpp,
+                masked_kernel::<_, K>(kc, alpha, &*app, &*bpp,
                                  beta, &mut *c, rsc, csc,
-                                 mr_, nr_);
+                                 mr_, nr_, &mut mask_buf[0][0]);
                 continue;
             }
 
@@ -232,4 +234,39 @@ unsafe fn pack<K>(kc: usize, mc: usize, pack: *mut K::Elem,
     }
 }
 
-
+/// Call the GEMM kernel with a "masked" output C.
+/// 
+/// Simply redirect the MR by NR kernel output to the passed
+/// in `mask_buf`, and copy the non masked region to the real
+/// C.
+///
+/// + rows: rows of kernel unmasked
+/// + cols: cols of kernel unmasked
+#[inline(never)]
+unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
+                              a: *const T,
+                              b: *const T,
+                              beta: T,
+                              c: *mut T, rsc: isize, csc: isize,
+                              rows: usize, cols: usize,
+                              mask_buf: *mut T)
+    where K: GemmKernel<Elem=T>, T: Element,
+{
+    let mr = K::mr();
+    let nr = K::nr();
+    K::kernel(k, T::one(), a, b, T::zero(), mask_buf, mr as isize , 1);
+    let mut ab = mask_buf;
+    for i in 0..rows {
+        for j in 0..cols {
+            let cptr = c.offset(rsc * i as isize + csc * j as isize);
+            if beta.is_zero() {
+                *cptr = T::zero(); // initialize C
+            } else {
+                (*cptr).scale_by(beta);
+            }
+            (*cptr).scaled_add(alpha, *ab);
+            ab.inc();
+        }
+        ab = ab.offset((nr - cols) as isize);
+    }
+}

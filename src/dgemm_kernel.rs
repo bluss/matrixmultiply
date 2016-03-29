@@ -34,18 +34,6 @@ impl GemmKernel for Gemm {
         c: *mut T, rsc: isize, csc: isize) {
         kernel_4x4(k, alpha, a, b, beta, c, rsc, csc)
     }
-
-    #[inline(always)]
-    unsafe fn kernel_masked(
-        k: usize,
-        alpha: T,
-        a: *const T,
-        b: *const T,
-        beta: T,
-        c: *mut T, rsc: isize, csc: isize,
-        mr_: usize, nr_: usize) {
-        kernel_masked_4x4(k, alpha, a, b, beta, c, rsc, csc, mr_, nr_)
-    }
 }
 
 /// Matrix multiplication kernel for 4x4
@@ -87,27 +75,6 @@ pub unsafe fn kernel_4x4(k: usize, alpha: T, a: *const T, b: *const T,
         loop4x4!(i, j, *c![i, j] = alpha * ab[i][j]);
     } else {
         loop4x4!(i, j, *c![i, j] = *c![i, j] * beta + alpha * ab[i][j]);
-    }
-}
-
-#[inline(never)]
-pub unsafe fn kernel_masked_4x4(k: usize, alpha: T, a: *const T, b: *const T,
-                                beta: T, c: *mut T, rsc: isize, csc: isize,
-                                rows: usize, cols: usize)
-{
-    let mut ab = [[0.; 4]; 4];
-    kernel_4x4(k, 1., a, b, 0., &mut ab[0][0], 4, 1);
-    for i in 0..rows {
-        for j in 0..cols {
-            if i >= 4 || j >= 4 { break; }
-            let cptr = c.offset(rsc * i as isize + csc * j as isize);
-            if beta == 0. {
-                *cptr = 0.; // initialize C
-            } else {
-                *cptr *= beta;
-            }
-            *cptr += alpha * ab[i][j];
-        }
     }
 }
 

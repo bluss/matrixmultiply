@@ -26,6 +26,10 @@ after_success:
   # upload the documentation (GH_TOKEN from env)
   - travis-cargo --only nightly doc-upload
 
+branches:
+  only:
+    - master
+
 env:
   global:
     # override the default `--features unstable` used for the nightly branch (optional)

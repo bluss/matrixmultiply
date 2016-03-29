@@ -15,6 +15,9 @@ impl GemmKernel for Gemm {
     fn nr() -> usize { 4 }
 
     #[inline(always)]
+    fn align_to() -> usize { 0 }
+
+    #[inline(always)]
     fn nc() -> usize { archparam::S_NC }
     #[inline(always)]
     fn kc() -> usize { archparam::S_KC }

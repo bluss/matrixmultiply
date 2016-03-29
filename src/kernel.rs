@@ -3,6 +3,11 @@
 pub trait GemmKernel {
     type Elem: Copy;
 
+    /// align inputs to this
+    ///
+    /// NOTE: Not yet used.
+    fn align_to() -> usize;
+
     /// Kernel rows
     fn mr() -> usize;
     /// Kernel cols

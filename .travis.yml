@@ -18,6 +18,8 @@ script:
   - |
       travis-cargo build &&
       travis-cargo test &&
+      travis-cargo test -- --release &&
+      travis-cargo test &&
       travis-cargo bench -- --no-run &&
       travis-cargo doc
 after_success:

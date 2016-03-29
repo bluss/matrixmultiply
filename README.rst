@@ -31,6 +31,10 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.3
+
+  - Silence some debug prints
+
 - 0.1.2
 
   - Major performance improvement for sgemm and dgemm (20-30% when using AVX).

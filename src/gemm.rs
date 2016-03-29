@@ -201,7 +201,6 @@ unsafe fn vec_uninit<U>(maximal: usize, kc: usize, k: usize, nn: usize) -> Vec<U
     let nelem = min(maximal, round_up_to(kk * nn, kc));
     let mut v = Vec::with_capacity(nelem);
     v.set_len(nelem);
-    dprint!("vec_uninit: len={}", nelem);
     v
 }
 

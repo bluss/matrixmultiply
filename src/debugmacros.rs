@@ -7,27 +7,20 @@
 // except according to those terms.
 
 // for debugging -- like println during debugging
-#[cfg(debug_assertions)]
 macro_rules! dprint {
     ($($t:tt)*) => {
-        println!($($t)*)
+        debug!(println!($($t)*))
     }
 }
 
-#[cfg(not(debug_assertions))]
-macro_rules! dprint {
-    ($($t:tt)*) => {
-    }
-}
-
-#[cfg(debug_assertions)]
+#[cfg(feature = "use_debug")]
 macro_rules! debug {
     ($e:expr) => {
         $e;
     }
 }
 
-#[cfg(not(debug_assertions))]
+#[cfg(not(feature = "use_debug"))]
 macro_rules! debug {
     ($e:expr) => {
     }

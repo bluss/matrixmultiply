@@ -93,6 +93,8 @@ unsafe fn gemm_loop<K>(
                                k, round_up_to(m, K::mr()));
     let mut bpack = vec_uninit(K::kc() * K::nc(), K::kc(),
                                min(k, K::kc()), round_up_to(n, K::nr()));
+    let app = apack.as_mut_ptr();
+    let bpp = bpack.as_mut_ptr();
     dprint!("pack len: {}", apack.len());
 
     // LOOP 5: split n into nc parts
@@ -109,7 +111,7 @@ unsafe fn gemm_loop<K>(
             debug!(for elt in &mut bpack { *elt = one; });
 
             // Pack B -> B~
-            pack::<K>(kc, nc, bpack.as_mut_ptr(), b, csb, rsb, zero);
+            pack::<K>(kc, nc, bpp, b, csb, rsb, zero);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
@@ -119,7 +121,7 @@ unsafe fn gemm_loop<K>(
                 debug!(for elt in &mut apack { *elt = one; });
 
                 // Pack A -> A~
-                pack::<K>(kc, mc, apack.as_mut_ptr(), a, rsa, csa, zero);
+                pack::<K>(kc, mc, app, a, rsa, csa, zero);
 
                 // First time writing to C, use user's `beta`, else accumulate
                 let betap = if l4 == 0 { beta } else { one };
@@ -127,7 +129,7 @@ unsafe fn gemm_loop<K>(
                 // LOOP 2 and 1
                 gemm_packed::<K>(nc, kc, mc,
                                  alpha,
-                                 apack.as_ptr(), bpack.as_ptr(),
+                                 app, bpp,
                                  betap,
                                  c, rsc, csc);
             }
@@ -151,27 +153,35 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 {
     let mr = K::mr();
     let nr = K::nr();
+    // FIXME: make mask_buf a vec when we need it
+    assert_eq!(mr, 4);
+    assert_eq!(nr, 4);
     let mut mask_buf = [[<_>::zero(); 4]; 4];
 
     // LOOP 2: through micropanels in packed `b`
     for (l2, nr_) in range_chunk(nc, nr) {
+        dprint!("LOOP 2, {}, nr_={}", l2, nr_);
         let bpp = bpp.stride_offset(kc as isize, nr * l2);
         let c = c.stride_offset(csc, nr * l2);
 
         // LOOP 1: through micropanels in packed `a` while `b` is constant
         for (l1, mr_) in range_chunk(mc, mr) {
+            dprint!("LOOP 1, {}, mr_={}", l1, mr_);
             let app = app.stride_offset(kc as isize, mr * l1);
             let c = c.stride_offset(rsc, mr * l1);
 
-            if nr_ < nr || mr_ < mr {
+            // GEMM KERNEL
+            // NOTE: For the moment, it performs better to simply
+            // always use the masked kernel function!
+            // if nr_ < nr || mr_ < mr {
+            {
                 masked_kernel::<_, K>(kc, alpha, &*app, &*bpp,
-                                 beta, &mut *c, rsc, csc,
-                                 mr_, nr_, &mut mask_buf[0][0]);
+                                      beta, &mut *c, rsc, csc,
+                                      mr_, nr_, &mut mask_buf[0][0]);
                 continue;
             }
 
-            // GEMM KERNEL
-            K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
+            // K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
         }
     }
 }
@@ -256,17 +266,18 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
     let nr = K::nr();
     K::kernel(k, T::one(), a, b, T::zero(), mask_buf, mr as isize , 1);
     let mut ab = mask_buf;
-    for i in 0..rows {
-        for j in 0..cols {
-            let cptr = c.offset(rsc * i as isize + csc * j as isize);
-            if beta.is_zero() {
-                *cptr = T::zero(); // initialize C
-            } else {
-                (*cptr).scale_by(beta);
+    for i in 0..mr {
+        for j in 0..nr {
+            if i < rows && j < cols {
+                let cptr = c.offset(rsc * i as isize + csc * j as isize);
+                if beta.is_zero() {
+                    *cptr = T::zero(); // initialize C
+                } else {
+                    (*cptr).scale_by(beta);
+                }
+                (*cptr).scaled_add(alpha, *ab);
             }
-            (*cptr).scaled_add(alpha, *ab);
             ab.inc();
         }
-        ab = ab.offset((nr - cols) as isize);
     }
 }

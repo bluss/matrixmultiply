@@ -90,14 +90,14 @@ unsafe fn gemm_loop<K>(
     let mut apack = vec_uninit(K::kc() * K::mc(), K::kc(),
                                k, round_up_to(m, K::mr()));
     let mut bpack = vec_uninit(K::kc() * K::nc(), K::kc(),
-                                   min(k, K::kc()), round_up_to(n, K::nr()));
+                               min(k, K::kc()), round_up_to(n, K::nr()));
     dprint!("pack len: {}", apack.len());
 
     // LOOP 5: split n into nc parts
     for (l5, nc) in range_chunk(n, knc) {
+        dprint!("LOOP 5, {}, nc={}", l5, nc);
         let b = b.offset(csb * knc as isize * l5 as isize);
         let c = c.offset(csc * knc as isize * l5 as isize);
-        dprint!("LOOP 5, {}, nc={}", l5, nc);
 
         // LOOP 4: split k in kc parts
         for (l4, kc) in range_chunk(k, kkc) {
@@ -150,14 +150,14 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     let mr = K::mr();
     let nr = K::nr();
 
+    // LOOP 2: through micropanels in packed `b`
     for (l2, nr_) in range_chunk(nc, nr) {
-        // LOOP 2: loop through panels for packed `b`
         let col_offset = (l2 * nr) as isize;
         let bpp = bpp.offset(col_offset * kc as isize);
         let c = c.offset(col_offset * csc);
 
+        // LOOP 1: through micropanels in packed `a` while `b` is constant
         for (l1, mr_) in range_chunk(mc, mr) {
-            // LOOP 1: through micropanels in packed `a` while `b` is constant
             let row_offset = (l1 * mr) as isize;
             let app = app.offset(row_offset * kc as isize);
             let c = c.offset(row_offset * rsc);

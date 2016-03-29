@@ -1,59 +1,136 @@
 extern crate matrixmultiply;
-use matrixmultiply::sgemm as gemm;
+use matrixmultiply::{sgemm, dgemm};
+
+use std::fmt::{Display, Debug};
+
+trait Float : Copy + Display + Debug + PartialEq {
+    fn zero() -> Self;
+    fn one() -> Self;
+    fn from(i64) -> Self;
+}
+
+impl Float for f32 {
+    fn zero() -> Self { 0. }
+    fn one() -> Self { 1. }
+    fn from(x: i64) -> Self { x as Self }
+}
+
+impl Float for f64 {
+    fn zero() -> Self { 0. }
+    fn one() -> Self { 1. }
+    fn from(x: i64) -> Self { x as Self }
+}
+
+
+trait Gemm : Sized {
+    unsafe fn gemm(
+        m: usize, k: usize, n: usize,
+        alpha: Self,
+        a: *const Self, rsa: isize, csa: isize,
+        b: *const Self, rsb: isize, csb: isize,
+        beta: Self,
+        c: *mut Self, rsc: isize, csc: isize);
+}
+
+impl Gemm for f32 {
+    unsafe fn gemm(
+        m: usize, k: usize, n: usize,
+        alpha: Self,
+        a: *const Self, rsa: isize, csa: isize,
+        b: *const Self, rsb: isize, csb: isize,
+        beta: Self,
+        c: *mut Self, rsc: isize, csc: isize) {
+        sgemm(
+            m, k, n,
+            alpha,
+            a, rsa, csa,
+            b, rsb, csb,
+            beta,
+            c, rsc, csc)
+    }
+}
+
+impl Gemm for f64 {
+    unsafe fn gemm(
+        m: usize, k: usize, n: usize,
+        alpha: Self,
+        a: *const Self, rsa: isize, csa: isize,
+        b: *const Self, rsb: isize, csb: isize,
+        beta: Self,
+        c: *mut Self, rsc: isize, csc: isize) {
+        dgemm(
+            m, k, n,
+            alpha,
+            a, rsa, csa,
+            b, rsb, csb,
+            beta,
+            c, rsc, csc)
+    }
+}
 
 #[test]
 fn test_sgemm() {
-    test_mul_with_id(4, 4, true);
-    test_mul_with_id(8, 8, true);
-    test_mul_with_id(32, 32, false);
-    test_mul_with_id(128, 128, false);
-    test_mul_with_id(17, 128, false);
+    test_gemm::<f32>();
+}
+#[test]
+fn test_dgemm() {
+    test_gemm::<f64>();
+}
+
+fn test_gemm<F>() where F: Gemm + Float {
+    test_mul_with_id::<F>(4, 4, true);
+    test_mul_with_id::<F>(8, 8, true);
+    test_mul_with_id::<F>(32, 32, false);
+    test_mul_with_id::<F>(128, 128, false);
+    test_mul_with_id::<F>(17, 128, false);
     for i in 0..12 {
         for j in 0..12 {
-            test_mul_with_id(i, j, true);
+            test_mul_with_id::<F>(i, j, true);
         }
     }
     /*
     */
-    test_mul_with_id(17, 257, false);
-    test_mul_with_id(24, 512, false);
+    test_mul_with_id::<F>(17, 257, false);
+    test_mul_with_id::<F>(24, 512, false);
     for i in 0..10 {
         for j in 0..10 {
-            test_mul_with_id(i * 4, j * 4, true);
+            test_mul_with_id::<F>(i * 4, j * 4, true);
         }
     }
-    test_mul_with_id(266, 265, false);
-    test_mul_id_with(4, 4, true);
+    test_mul_with_id::<F>(266, 265, false);
+    test_mul_id_with::<F>(4, 4, true);
     for i in 0..12 {
         for j in 0..12 {
-            test_mul_id_with(i, j, true);
+            test_mul_id_with::<F>(i, j, true);
         }
     }
-    test_mul_id_with(266, 265, false);
+    test_mul_id_with::<F>(266, 265, false);
 }
 
 /// multiply a M x N matrix with an N x N id matrix
 #[cfg(test)]
-fn test_mul_with_id(m: usize, n: usize, small: bool) {
+fn test_mul_with_id<F>(m: usize, n: usize, small: bool)
+    where F: Gemm + Float
+{
     let (m, k, n) = (m, n, n);
-    let mut a = vec![0.; m * k]; 
-    let mut b = vec![0.; k * n];
-    let mut c = vec![0.; m * n];
+    let mut a = vec![F::zero(); m * k]; 
+    let mut b = vec![F::zero(); k * n];
+    let mut c = vec![F::zero(); m * n];
 
     for (i, elt) in a.iter_mut().enumerate() {
-        *elt = i as f32;
+        *elt = F::from(i as i64);
     }
     for i in 0..k {
-        b[i + i * k] = 1.;
+        b[i + i * k] = F::one();
     }
 
     unsafe {
-        gemm(
+        F::gemm(
             m, k, n,
-            1.,
+            F::one(),
             a.as_ptr(), k as isize, 1,
             b.as_ptr(), n as isize, 1,
-            0.,
+            F::zero(),
             c.as_mut_ptr(), n as isize, 1,
             )
     }
@@ -79,26 +156,28 @@ fn test_mul_with_id(m: usize, n: usize, small: bool) {
 
 /// multiply a K x K id matrix with an K x N matrix
 #[cfg(test)]
-fn test_mul_id_with(k: usize, n: usize, small: bool) {
+fn test_mul_id_with<F>(k: usize, n: usize, small: bool) 
+    where F: Gemm + Float
+{
     let (m, k, n) = (k, k, n);
-    let mut a = vec![0.; m * k]; 
-    let mut b = vec![0.; k * n];
-    let mut c = vec![0.; m * n];
+    let mut a = vec![F::zero(); m * k]; 
+    let mut b = vec![F::zero(); k * n];
+    let mut c = vec![F::zero(); m * n];
 
     for i in 0..k {
-        a[i + i * k] = 1.;
+        a[i + i * k] = F::one();
     }
     for (i, elt) in b.iter_mut().enumerate() {
-        *elt = i as f32;
+        *elt = F::from(i as i64);
     }
 
     unsafe {
-        gemm(
+        F::gemm(
             m, k, n,
-            1.,
+            F::one(),
             a.as_ptr(), k as isize, 1,
             b.as_ptr(), n as isize, 1,
-            0.,
+            F::zero(),
             c.as_mut_ptr(), n as isize, 1,
             )
     }

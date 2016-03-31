@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use std::cmp::min;
+use std::mem::size_of;
 
 use util::range_chunk;
 use util::round_up_to;
@@ -83,6 +84,27 @@ pub unsafe fn dgemm(
         c, rsc, csc)
 }
 
+/// Ensure that GemmKernel parameters are supported
+/// (alignment, microkernel size).
+///
+/// This function is optimized out for a supported configuration.
+#[inline(always)]
+fn ensure_kernel_params<K>()
+    where K: GemmKernel
+{
+    let mr = K::mr();
+    let nr = K::nr();
+    assert!(mr > 0 && mr <= 8);
+    assert!(nr > 0 && nr <= 8);
+    assert!(mr * nr * size_of::<K::Elem>() <= 8 * 4 * 8);
+    assert!(K::align_to() <= 32);
+    // one row/col of the kernel is limiting the max align we can provide
+    let max_align = size_of::<K::Elem>() * min(mr, nr);
+    assert!(K::align_to() <= max_align);
+}
+
+/// Implement matrix multiply using packed buffers and a microkernel
+/// strategy, the type parameter `K` is the gemm microkernel.
 unsafe fn gemm_loop<K>(
     m: usize, k: usize, n: usize,
     alpha: K::Elem,
@@ -95,13 +117,11 @@ unsafe fn gemm_loop<K>(
     let knc = K::nc();
     let kkc = K::kc();
     let kmc = K::mc();
-    let mut apack = vec_uninit(K::kc() * K::mc(), K::kc(),
-                               k, round_up_to(m, K::mr()));
-    let mut bpack = vec_uninit(K::kc() * K::nc(), K::kc(),
-                               min(k, K::kc()), round_up_to(n, K::nr()));
-    let app = apack.as_mut_ptr();
-    let bpp = bpack.as_mut_ptr();
-    dprint!("pack len: {}", apack.len());
+    ensure_kernel_params::<K>();
+    let mut apack = packing_vec::<K>(K::mc(), K::mr(), k, m);
+    let mut bpack = packing_vec::<K>(K::nc(), K::nr(), k, n);
+    let app = make_aligned_vec_ptr(K::align_to(), &mut apack);
+    let bpp = make_aligned_vec_ptr(K::align_to(), &mut bpack);
 
     // LOOP 5: split n into nc parts
     for (l5, nc) in range_chunk(n, knc) {
@@ -117,7 +137,7 @@ unsafe fn gemm_loop<K>(
             debug!(for elt in &mut bpack { *elt = <_>::one(); });
 
             // Pack B -> B~
-            pack::<K>(kc, nc, bpp, b, csb, rsb);
+            pack::<K>(kc, nc, K::nr(), bpp, b, csb, rsb);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
@@ -127,7 +147,7 @@ unsafe fn gemm_loop<K>(
                 debug!(for elt in &mut apack { *elt = <_>::one(); });
 
                 // Pack A -> A~
-                pack::<K>(kc, mc, app, a, rsa, csa);
+                pack::<K>(kc, mc, K::mr(), app, a, rsa, csa);
 
                 // First time writing to C, use user's `beta`, else accumulate
                 let betap = if l4 == 0 { beta } else { <_>::one() };
@@ -159,66 +179,93 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 {
     let mr = K::mr();
     let nr = K::nr();
-    // FIXME: make mask_buf a vec when we need it
-    assert_eq!(mr, 4);
-    assert_eq!(nr, 4);
-    let mut mask_buf = [[<_>::zero(); 4]; 4];
+    // make a mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
+    assert!(mr * nr * size_of::<K::Elem>() <= 256 && K::align_to() <= 32);
+    let mut mask_buf = [0u8; 256 + 31];
+    let mask_ptr = align_ptr(32, mask_buf.as_mut_ptr()) as *mut K::Elem;
 
     // LOOP 2: through micropanels in packed `b`
     for (l2, nr_) in range_chunk(nc, nr) {
-        dprint!("LOOP 2, {}, nr_={}", l2, nr_);
-        let bpp = bpp.stride_offset(kc as isize, nr * l2);
+        let bpp = bpp.stride_offset(1, kc * nr * l2);
         let c = c.stride_offset(csc, nr * l2);
 
         // LOOP 1: through micropanels in packed `a` while `b` is constant
         for (l1, mr_) in range_chunk(mc, mr) {
-            dprint!("LOOP 1, {}, mr_={}", l1, mr_);
-            let app = app.stride_offset(kc as isize, mr * l1);
+            let app = app.stride_offset(1, kc * mr * l1);
             let c = c.stride_offset(rsc, mr * l1);
 
             // GEMM KERNEL
-            // NOTE: For the moment, it performs better to simply
+            // NOTE: For the rust kernels, it performs better to simply
             // always use the masked kernel function!
-            // if nr_ < nr || mr_ < mr {
-            {
+            if K::always_masked() || nr_ < nr || mr_ < mr {
                 masked_kernel::<_, K>(kc, alpha, &*app, &*bpp,
                                       beta, &mut *c, rsc, csc,
-                                      mr_, nr_, &mut mask_buf[0][0]);
+                                      mr_, nr_, mask_ptr);
                 continue;
+            } else {
+                K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
             }
-
-            // K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
         }
     }
 }
 
-/// Allocate a vector of uninitialized data.
-/// Round size up to multiples of KC.
-unsafe fn vec_uninit<U>(maximal: usize, kc: usize, k: usize, nn: usize) -> Vec<U> {
-    let kk = min(k, kc);
+/// Allocate a vector of uninitialized data for the packed buffers
+///
+/// For A, its size should be kc times mc, but we can make it smaller
+/// if the matrix is smaller than this (just ensure we have rounded up
+/// to a multiple of the kernel size).
+unsafe fn packing_vec<K>(mc_or_nc: usize, mr_or_nr: usize, k: usize, m: usize) -> Vec<K::Elem>
+    where K: GemmKernel,
+{
+    let k = min(k, K::kc());
+    let m = min(m, mc_or_nc);
     // round up k, n to multiples of mr, nr
     // round up to multiple of kc
-    let nelem = min(maximal, round_up_to(kk * nn, kc));
+    let nelem = min(K::kc() * mc_or_nc, k * round_up_to(m, mr_or_nr));
     let mut v = Vec::with_capacity(nelem);
     v.set_len(nelem);
+    dprint!("packed len={}, for mc={}, mr={}, k={}, m={}",
+            nelem, mc_or_nc, mr_or_nr, k, m);
     v
+}
+
+/// Align a pointer into the vec. Will reallocate to fit & shift the pointer
+/// forwards if needed. This invalidates any previous pointers into the v.
+unsafe fn make_aligned_vec_ptr<U>(align_to: usize, v: &mut Vec<U>) -> *mut U {
+    let mut ptr = v.as_mut_ptr();
+    if align_to != 0 {
+        if v.as_ptr() as usize % align_to != 0 {
+            let cap = v.capacity();
+            v.reserve_exact(cap + align_to / size_of::<U>() - 1);
+            ptr = align_ptr(align_to, v.as_mut_ptr());
+        }
+    }
+    ptr
+}
+
+/// offset the ptr forwards to align to a specific byte count
+unsafe fn align_ptr<U>(align_to: usize, mut ptr: *mut U) -> *mut U {
+    if align_to != 0 {
+        let cur_align = ptr as usize % align_to;
+        if cur_align != 0 {
+            ptr = ptr.offset(((align_to - cur_align) / size_of::<U>()) as isize);
+        }
+    }
+    ptr
 }
 
 /// Pack matrix into `pack`
 ///
 /// + kc: length of the micropanel
 /// + mc: number of rows/columns in the matrix to be packed
+/// + mr: kernel rows/columns that we round up to
 /// + rsa: row stride
 /// + csa: column stride
 /// + zero: zero element to pad with
-unsafe fn pack<K>(kc: usize, mc: usize, pack: *mut K::Elem,
+unsafe fn pack<K>(kc: usize, mc: usize, mr: usize, pack: *mut K::Elem,
                   a: *const K::Elem, rsa: isize, csa: isize)
     where K: GemmKernel,
 {
-    let mr = K::mr();
-    let zero = <_>::zero();
-    debug_assert_eq!(K::mr(), K::nr());
-
     let mut pack = pack;
     for ir in 0..mc/mr {
         let row_offset = ir * mr;
@@ -230,6 +277,8 @@ unsafe fn pack<K>(kc: usize, mc: usize, pack: *mut K::Elem,
             }
         }
     }
+
+    let zero = <_>::zero();
 
     // Pad with zeros to multiple of kernel size (uneven mc)
     let rest = mc % mr;
@@ -269,10 +318,11 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
 {
     let mr = K::mr();
     let nr = K::nr();
-    K::kernel(k, T::one(), a, b, T::zero(), mask_buf, mr as isize , 1);
+    // use column major order for `mask_buf`
+    K::kernel(k, T::one(), a, b, T::zero(), mask_buf, 1, mr as isize);
     let mut ab = mask_buf;
-    for i in 0..mr {
-        for j in 0..nr {
+    for j in 0..nr {
+        for i in 0..mr {
             if i < rows && j < cols {
                 let cptr = c.offset(rsc * i as isize + csc * j as isize);
                 if beta.is_zero() {

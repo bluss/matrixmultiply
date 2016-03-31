@@ -15,9 +15,40 @@ macro_rules! loop4 {
     }}
 }
 
+macro_rules! loop8 {
+    ($i:ident, $e:expr) => {{
+        let $i = 0; $e;
+        let $i = 1; $e;
+        let $i = 2; $e;
+        let $i = 3; $e;
+        let $i = 4; $e;
+        let $i = 5; $e;
+        let $i = 6; $e;
+        let $i = 7; $e;
+    }}
+}
+
 macro_rules! loop4x4 {
     ($i:ident, $j:ident, $e:expr) => {{
         loop4!($i, loop4!($j, $e));
+    }}
+}
+
+macro_rules! loop8x4 {
+    ($i:ident, $j:ident, $e:expr) => {{
+        loop8!($i, loop4!($j, $e));
+    }}
+}
+
+macro_rules! unroll_by_4 {
+    ($ntimes:expr, $e:expr) => {{
+        let k = $ntimes;
+        for _ in 0..k / 4 {
+            $e;$e; $e;$e;
+        }
+        for _ in 0..k % 4 {
+            $e
+        }
     }}
 }
 

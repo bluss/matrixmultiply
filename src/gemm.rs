@@ -294,10 +294,11 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
 {
     let mr = K::mr();
     let nr = K::nr();
-    K::kernel(k, T::one(), a, b, T::zero(), mask_buf, mr as isize , 1);
+    // use column major order for `mask_buf`
+    K::kernel(k, T::one(), a, b, T::zero(), mask_buf, 1, mr as isize);
     let mut ab = mask_buf;
-    for i in 0..mr {
-        for j in 0..nr {
+    for j in 0..nr {
+        for i in 0..mr {
             if i < rows && j < cols {
                 let cptr = c.offset(rsc * i as isize + csc * j as isize);
                 if beta.is_zero() {

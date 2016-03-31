@@ -167,13 +167,13 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     // LOOP 2: through micropanels in packed `b`
     for (l2, nr_) in range_chunk(nc, nr) {
         dprint!("LOOP 2, {}, nr_={}", l2, nr_);
-        let bpp = bpp.stride_offset(kc as isize, nr * l2);
+        let bpp = bpp.stride_offset(1, kc * nr * l2);
         let c = c.stride_offset(csc, nr * l2);
 
         // LOOP 1: through micropanels in packed `a` while `b` is constant
         for (l1, mr_) in range_chunk(mc, mr) {
             dprint!("LOOP 1, {}, mr_={}", l1, mr_);
-            let app = app.stride_offset(kc as isize, mr * l1);
+            let app = app.stride_offset(1, kc * mr * l1);
             let c = c.stride_offset(rsc, mr * l1);
 
             // GEMM KERNEL

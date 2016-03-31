@@ -31,6 +31,12 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.4
+
+  - Prepare support for aligned packed buffers
+  - Update dgemm to use a 8x4 microkernel, still in simplistic rust,
+    which improves throughput by 10-20% when using AVX.
+
 - 0.1.3
 
   - Silence some debug prints

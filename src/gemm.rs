@@ -96,13 +96,10 @@ unsafe fn gemm_loop<K>(
     let knc = K::nc();
     let kkc = K::kc();
     let kmc = K::mc();
-    let mut apack = vec_uninit(K::kc() * K::mc(), K::kc(),
-                               k, round_up_to(m, K::mr()));
-    let mut bpack = vec_uninit(K::kc() * K::nc(), K::kc(),
-                               min(k, K::kc()), round_up_to(n, K::nr()));
+    let mut apack = packing_vec::<K>(K::mc(), K::mr(), k, m);
+    let mut bpack = packing_vec::<K>(K::nc(), K::nr(), k, n);
     let app = make_aligned_vec_ptr(K::align_to(), &mut apack);
     let bpp = make_aligned_vec_ptr(K::align_to(), &mut bpack);
-    dprint!("pack len: {}", apack.len());
 
     // LOOP 5: split n into nc parts
     for (l5, nc) in range_chunk(n, knc) {
@@ -167,13 +164,11 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 
     // LOOP 2: through micropanels in packed `b`
     for (l2, nr_) in range_chunk(nc, nr) {
-        dprint!("LOOP 2, {}, nr_={}", l2, nr_);
         let bpp = bpp.stride_offset(1, kc * nr * l2);
         let c = c.stride_offset(csc, nr * l2);
 
         // LOOP 1: through micropanels in packed `a` while `b` is constant
         for (l1, mr_) in range_chunk(mc, mr) {
-            dprint!("LOOP 1, {}, mr_={}", l1, mr_);
             let app = app.stride_offset(1, kc * mr * l1);
             let c = c.stride_offset(rsc, mr * l1);
 
@@ -192,15 +187,23 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     }
 }
 
-/// Allocate a vector of uninitialized data.
-/// Round size up to multiples of KC.
-unsafe fn vec_uninit<U>(maximal: usize, kc: usize, k: usize, nn: usize) -> Vec<U> {
-    let kk = min(k, kc);
+/// Allocate a vector of uninitialized data for the packed buffers
+///
+/// For A, its size should be kc times mc, but we can make it smaller
+/// if the matrix is smaller than this (just ensure we have rounded up
+/// to a multiple of the kernel size).
+unsafe fn packing_vec<K>(mc_or_nc: usize, mr_or_nr: usize, k: usize, m: usize) -> Vec<K::Elem>
+    where K: GemmKernel,
+{
+    let k = min(k, K::kc());
+    let m = min(m, mc_or_nc);
     // round up k, n to multiples of mr, nr
     // round up to multiple of kc
-    let nelem = min(maximal, round_up_to(kk * nn, kc));
+    let nelem = min(K::kc() * mc_or_nc, k * round_up_to(m, mr_or_nr));
     let mut v = Vec::with_capacity(nelem);
     v.set_len(nelem);
+    dprint!("packed len={}, for mc={}, mr={}, k={}, m={}",
+            nelem, mc_or_nc, mr_or_nr, k, m);
     v
 }
 

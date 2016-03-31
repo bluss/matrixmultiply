@@ -118,7 +118,7 @@ unsafe fn gemm_loop<K>(
             debug!(for elt in &mut bpack { *elt = <_>::one(); });
 
             // Pack B -> B~
-            pack::<K>(kc, nc, bpp, b, csb, rsb);
+            pack::<K>(kc, nc, K::nr(), bpp, b, csb, rsb);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
@@ -128,7 +128,7 @@ unsafe fn gemm_loop<K>(
                 debug!(for elt in &mut apack { *elt = <_>::one(); });
 
                 // Pack A -> A~
-                pack::<K>(kc, mc, app, a, rsa, csa);
+                pack::<K>(kc, mc, K::mr(), app, a, rsa, csa);
 
                 // First time writing to C, use user's `beta`, else accumulate
                 let betap = if l4 == 0 { beta } else { <_>::one() };
@@ -233,17 +233,14 @@ unsafe fn align_ptr<U>(align_to: usize, mut ptr: *mut U) -> *mut U {
 ///
 /// + kc: length of the micropanel
 /// + mc: number of rows/columns in the matrix to be packed
+/// + mr: kernel rows/columns that we round up to
 /// + rsa: row stride
 /// + csa: column stride
 /// + zero: zero element to pad with
-unsafe fn pack<K>(kc: usize, mc: usize, pack: *mut K::Elem,
+unsafe fn pack<K>(kc: usize, mc: usize, mr: usize, pack: *mut K::Elem,
                   a: *const K::Elem, rsa: isize, csa: isize)
     where K: GemmKernel,
 {
-    let mr = K::mr();
-    let zero = <_>::zero();
-    debug_assert_eq!(K::mr(), K::nr());
-
     let mut pack = pack;
     for ir in 0..mc/mr {
         let row_offset = ir * mr;
@@ -255,6 +252,8 @@ unsafe fn pack<K>(kc: usize, mc: usize, pack: *mut K::Elem,
             }
         }
     }
+
+    let zero = <_>::zero();
 
     // Pad with zeros to multiple of kernel size (uneven mc)
     let rest = mc % mr;

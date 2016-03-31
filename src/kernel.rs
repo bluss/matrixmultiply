@@ -20,6 +20,11 @@ pub trait GemmKernel {
     /// Kernel cols
     fn nr() -> usize;
 
+    /// Whether to always use the masked wrapper around the kernel.
+    ///
+    /// If masked, the kernel is always called with α=1, β=0
+    fn always_masked() -> bool;
+
     fn nc() -> usize;
     fn kc() -> usize;
     fn mc() -> usize;

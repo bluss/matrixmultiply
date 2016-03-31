@@ -17,12 +17,15 @@ impl GemmKernel for Gemm {
     type Elem = T;
 
     #[inline(always)]
+    fn align_to() -> usize { 0 }
+
+    #[inline(always)]
     fn mr() -> usize { 4 }
     #[inline(always)]
     fn nr() -> usize { 4 }
 
     #[inline(always)]
-    fn align_to() -> usize { 0 }
+    fn always_masked() -> bool { true }
 
     #[inline(always)]
     fn nc() -> usize { archparam::S_NC }

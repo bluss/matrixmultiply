@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use std::cmp::min;
+use std::mem::size_of;
 
 use util::range_chunk;
 use util::round_up_to;
@@ -99,8 +100,8 @@ unsafe fn gemm_loop<K>(
                                k, round_up_to(m, K::mr()));
     let mut bpack = vec_uninit(K::kc() * K::nc(), K::kc(),
                                min(k, K::kc()), round_up_to(n, K::nr()));
-    let app = apack.as_mut_ptr();
-    let bpp = bpack.as_mut_ptr();
+    let app = make_aligned_vec_ptr(K::align_to(), &mut apack);
+    let bpp = make_aligned_vec_ptr(K::align_to(), &mut bpack);
     dprint!("pack len: {}", apack.len());
 
     // LOOP 5: split n into nc parts
@@ -159,10 +160,10 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 {
     let mr = K::mr();
     let nr = K::nr();
-    // FIXME: make mask_buf a vec when we need it
-    assert_eq!(mr, 4);
-    assert_eq!(nr, 4);
-    let mut mask_buf = [[<_>::zero(); 4]; 4];
+    // make a mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
+    assert!(mr * nr * size_of::<K::Elem>() <= 256 && K::align_to() <= 32);
+    let mut mask_buf = [0u8; 256 + 31];
+    let mask_ptr = align_ptr(32, mask_buf.as_mut_ptr()) as *mut K::Elem;
 
     // LOOP 2: through micropanels in packed `b`
     for (l2, nr_) in range_chunk(nc, nr) {
@@ -177,17 +178,16 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
             let c = c.stride_offset(rsc, mr * l1);
 
             // GEMM KERNEL
-            // NOTE: For the moment, it performs better to simply
+            // NOTE: For the rust kernels, it performs better to simply
             // always use the masked kernel function!
-            // if nr_ < nr || mr_ < mr {
-            {
+            if K::always_masked() || nr_ < nr || mr_ < mr {
                 masked_kernel::<_, K>(kc, alpha, &*app, &*bpp,
                                       beta, &mut *c, rsc, csc,
-                                      mr_, nr_, &mut mask_buf[0][0]);
+                                      mr_, nr_, mask_ptr);
                 continue;
+            } else {
+                K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
             }
-
-            // K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
         }
     }
 }
@@ -202,6 +202,31 @@ unsafe fn vec_uninit<U>(maximal: usize, kc: usize, k: usize, nn: usize) -> Vec<U
     let mut v = Vec::with_capacity(nelem);
     v.set_len(nelem);
     v
+}
+
+/// Align a pointer into the vec. Will reallocate to fit & shift the pointer
+/// forwards if needed. This invalidates any previous pointers into the v.
+unsafe fn make_aligned_vec_ptr<U>(align_to: usize, v: &mut Vec<U>) -> *mut U {
+    let mut ptr = v.as_mut_ptr();
+    if align_to != 0 {
+        if v.as_ptr() as usize % align_to != 0 {
+            let cap = v.capacity();
+            v.reserve_exact(cap + align_to / size_of::<U>() - 1);
+            ptr = align_ptr(align_to, v.as_mut_ptr());
+        }
+    }
+    ptr
+}
+
+/// offset the ptr forwards to align to a specific byte count
+unsafe fn align_ptr<U>(align_to: usize, mut ptr: *mut U) -> *mut U {
+    if align_to != 0 {
+        let cur_align = ptr as usize % align_to;
+        if cur_align != 0 {
+            ptr = ptr.offset(((align_to - cur_align) / size_of::<U>()) as isize);
+        }
+    }
+    ptr
 }
 
 /// Pack matrix into `pack`

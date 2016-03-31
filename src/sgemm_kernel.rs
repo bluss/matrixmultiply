@@ -65,6 +65,7 @@ pub unsafe fn kernel_4x4(k: usize, alpha: T, a: *const T, b: *const T,
     let mut ab = [[0.; 4]; 4];
     let mut a = a;
     let mut b = b;
+    debug_assert_eq!(beta, 0.); // always masked
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by_8!(k, {
@@ -80,13 +81,8 @@ pub unsafe fn kernel_4x4(k: usize, alpha: T, a: *const T, b: *const T,
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
     }
 
-    // Compute C = alpha A B + beta C,
-    // except we can not read C if beta is zero.
-    if beta == 0. {
-        loop4x4!(i, j, *c![i, j] = alpha * ab[i][j]);
-    } else {
-        loop4x4!(i, j, *c![i, j] = *c![i, j] * beta + alpha * ab[i][j]);
-    }
+    // set C = α A B
+    loop4x4!(i, j, *c![i, j] = alpha * ab[i][j]);
 }
 
 #[inline(always)]
@@ -111,15 +107,5 @@ fn test_gemm_kernel() {
         // transposed C so that results line up
     }
     assert_eq!(&a, &c);
-
-    // Test scale + add
-    //
-    let mut aprim = a;
-    for elt in &mut aprim { *elt *= 3.; }
-    unsafe {
-        kernel_4x4(4, 2.5, &a[0], &b[0],
-                   0.5, &mut c[0], 1, 4);
-    }
-    assert_eq!(&aprim, &c);
 }
 

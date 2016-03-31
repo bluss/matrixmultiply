@@ -84,6 +84,27 @@ pub unsafe fn dgemm(
         c, rsc, csc)
 }
 
+/// Ensure that GemmKernel parameters are supported
+/// (alignment, microkernel size).
+///
+/// This function is optimized out for a supported configuration.
+#[inline(always)]
+fn ensure_kernel_params<K>()
+    where K: GemmKernel
+{
+    let mr = K::mr();
+    let nr = K::nr();
+    assert!(mr > 0 && mr <= 8);
+    assert!(nr > 0 && nr <= 8);
+    assert!(mr * nr * size_of::<K::Elem>() <= 8 * 4 * 8);
+    assert!(K::align_to() <= 32);
+    // one row/col of the kernel is limiting the max align we can provide
+    let max_align = size_of::<K::Elem>() * min(mr, nr);
+    assert!(K::align_to() <= max_align);
+}
+
+/// Implement matrix multiply using packed buffers and a microkernel
+/// strategy, the type parameter `K` is the gemm microkernel.
 unsafe fn gemm_loop<K>(
     m: usize, k: usize, n: usize,
     alpha: K::Elem,
@@ -96,6 +117,7 @@ unsafe fn gemm_loop<K>(
     let knc = K::nc();
     let kkc = K::kc();
     let kmc = K::mc();
+    ensure_kernel_params::<K>();
     let mut apack = packing_vec::<K>(K::mc(), K::mr(), k, m);
     let mut bpack = packing_vec::<K>(K::nc(), K::nr(), k, n);
     let app = make_aligned_vec_ptr(K::align_to(), &mut apack);

@@ -31,6 +31,10 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.6
+
+  - Disable manual loop unrolling in debug mode (quicker debug builds)
+
 - 0.1.5
 
   - Update sgemm to use a 4x8 microkernel (“still in simplistic rust”),

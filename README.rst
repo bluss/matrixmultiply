@@ -31,6 +31,11 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.5
+
+  - Update sgemm to use a 4x8 microkernel (“still in simplistic rust”),
+    which improves throughput by 10%.
+
 - 0.1.4
 
   - Prepare support for aligned packed buffers

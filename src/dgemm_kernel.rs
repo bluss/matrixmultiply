@@ -13,6 +13,9 @@ pub enum Gemm { }
 
 pub type T = f64;
 
+const MR: usize = 8;
+const NR: usize = 4;
+
 impl GemmKernel for Gemm {
     type Elem = T;
 
@@ -20,9 +23,9 @@ impl GemmKernel for Gemm {
     fn align_to() -> usize { 0 }
 
     #[inline(always)]
-    fn mr() -> usize { 8 }
+    fn mr() -> usize { MR }
     #[inline(always)]
-    fn nr() -> usize { 4 }
+    fn nr() -> usize { NR }
 
     #[inline(always)]
     fn always_masked() -> bool { true }
@@ -46,36 +49,36 @@ impl GemmKernel for Gemm {
     }
 }
 
-/// Matrix multiplication kernel for 4x4
+/// matrix multiplication kernel
 ///
 /// This does the matrix multiplication:
 ///
 /// C ← α A B + β C
 ///
-/// + `k`: length of data in a, b
+/// + k: length of data in a, b
 /// + a, b are packed
 /// + c has general strides
 /// + rsc: row stride of c
 /// + csc: col stride of c
-/// + if `beta` is `0.`, then c does not need to be initialized
+/// + if beta is 0, then c does not need to be initialized
 #[inline(always)]
 pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
                      beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    let mut ab = [[0.; 4]; 8];
+    let mut ab = [[0.; NR]; MR];
     let mut a = a;
     let mut b = b;
     debug_assert_eq!(beta, 0.); // always masked
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by_4!(k, {
-        let v0 = [at(a, 0), at(a, 1), at(a, 2), at(a, 3),
-                  at(a, 4), at(a, 5), at(a, 6), at(a, 7)];
-        let v1 =  [at(b, 0), at(b, 1), at(b, 2), at(b, 3)];
+        let v0: [_; MR] = [at(a, 0), at(a, 1), at(a, 2), at(a, 3),
+                           at(a, 4), at(a, 5), at(a, 6), at(a, 7)];
+        let v1: [_; NR] = [at(b, 0), at(b, 1), at(b, 2), at(b, 3)];
         loop8x4!(i, j, ab[i][j] += v0[i] * v1[j]);
 
-        a = a.offset(8);
-        b = b.offset(4);
+        a = a.offset(MR as isize);
+        b = b.offset(NR as isize);
     });
 
     macro_rules! c {

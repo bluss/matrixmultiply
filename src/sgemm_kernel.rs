@@ -13,6 +13,9 @@ pub enum Gemm { }
 
 pub type T = f32;
 
+const MR: usize = 4;
+const NR: usize = 8;
+
 impl GemmKernel for Gemm {
     type Elem = T;
 
@@ -20,9 +23,9 @@ impl GemmKernel for Gemm {
     fn align_to() -> usize { 0 }
 
     #[inline(always)]
-    fn mr() -> usize { 4 }
+    fn mr() -> usize { MR }
     #[inline(always)]
-    fn nr() -> usize { 4 }
+    fn nr() -> usize { NR }
 
     #[inline(always)]
     fn always_masked() -> bool { true }
@@ -42,11 +45,11 @@ impl GemmKernel for Gemm {
         b: *const T,
         beta: T,
         c: *mut T, rsc: isize, csc: isize) {
-        kernel_4x4(k, alpha, a, b, beta, c, rsc, csc)
+        kernel(k, alpha, a, b, beta, c, rsc, csc)
     }
 }
 
-/// 4x4 matrix multiplication kernel for f32
+/// matrix multiplication kernel
 ///
 /// This does the matrix multiplication:
 ///
@@ -57,24 +60,25 @@ impl GemmKernel for Gemm {
 /// + c has general strides
 /// + rsc: row stride of c
 /// + csc: col stride of c
-/// + if `beta` is 0, then c does not need to be initialized
+/// + if beta is 0, then c does not need to be initialized
 #[inline(always)]
-pub unsafe fn kernel_4x4(k: usize, alpha: T, a: *const T, b: *const T,
-                         beta: T, c: *mut T, rsc: isize, csc: isize)
+pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
+                     beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    let mut ab = [[0.; 4]; 4];
+    let mut ab = [[0.; NR]; MR];
     let mut a = a;
     let mut b = b;
     debug_assert_eq!(beta, 0.); // always masked
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by_8!(k, {
-        let v0 = [at(a, 0), at(a, 1), at(a, 2), at(a, 3)];
-        let v1 = [at(b, 0), at(b, 1), at(b, 2), at(b, 3)];
-        loop4x4!(i, j, ab[i][j] += v0[i] * v1[j]);
+        let v0: [_; MR] = [at(a, 0), at(a, 1), at(a, 2), at(a, 3)];
+        let v1: [_; NR] = [at(b, 0), at(b, 1), at(b, 2), at(b, 3),
+                           at(b, 4), at(b, 5), at(b, 6), at(b, 7)];
+        loop4!(i, loop8!(j, ab[i][j] += v0[i] * v1[j]));
 
-        a = a.offset(4);
-        b = b.offset(4);
+        a = a.offset(MR as isize);
+        b = b.offset(NR as isize);
     });
 
     macro_rules! c {
@@ -82,7 +86,9 @@ pub unsafe fn kernel_4x4(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // set C = α A B
-    loop4x4!(i, j, *c![i, j] = alpha * ab[i][j]);
+    for j in 0..NR {
+        loop4!(i, *c![i, j] = alpha * ab[i][j]);
+    }
 }
 
 #[inline(always)]
@@ -93,18 +99,18 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
 #[test]
 fn test_gemm_kernel() {
     let mut a = [1.; 16];
-    let mut b = [0.; 16];
+    let mut b = [0.; 32];
     for (i, x) in a.iter_mut().enumerate() {
         *x = i as f32;
     }
+
     for i in 0..4 {
-        b[i + i * 4] = 1.;
+        b[i + i * 8] = 1.;
     }
     let mut c = [0.; 16];
     unsafe {
-        kernel_4x4(4, 1., &a[0], &b[0],
-                   0., &mut c[0], 1, 4);
-        // transposed C so that results line up
+        kernel(4, 1., &a[0], &b[0], 0., &mut c[0], 1, 4);
+        // col major C
     }
     assert_eq!(&a, &c);
 }

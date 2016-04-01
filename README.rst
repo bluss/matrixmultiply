@@ -15,14 +15,14 @@ multithreading).
 
 Please read the `API documentation here`__
 
-__ http://bluss.github.io/matrixmultiply/
+__ https://bluss.github.io/matrixmultiply/
 
 |build_status|_ |crates|_
 
 .. |build_status| image:: https://travis-ci.org/bluss/matrixmultiply.svg?branch=master
 .. _build_status: https://travis-ci.org/bluss/matrixmultiply
 
-.. |crates| image:: http://meritbadge.herokuapp.com/matrixmultiply
+.. |crates| image:: https://meritbadge.herokuapp.com/matrixmultiply
 .. _crates: https://crates.io/crates/matrixmultiply
 
 **NOTE: Compile this crate using** ``RUSTFLAGS="-C target-cpu=native"`` **so

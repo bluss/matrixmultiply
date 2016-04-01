@@ -49,7 +49,7 @@ impl GemmKernel for Gemm {
     }
 }
 
-/// 4x4 matrix multiplication kernel for f32
+/// matrix multiplication kernel
 ///
 /// This does the matrix multiplication:
 ///
@@ -60,7 +60,7 @@ impl GemmKernel for Gemm {
 /// + c has general strides
 /// + rsc: row stride of c
 /// + csc: col stride of c
-/// + if `beta` is 0, then c does not need to be initialized
+/// + if beta is 0, then c does not need to be initialized
 #[inline(always)]
 pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
                      beta: T, c: *mut T, rsc: isize, csc: isize)

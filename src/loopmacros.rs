@@ -6,6 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+
+// Unroll only in non-debug builds
+
 macro_rules! loop4 {
     ($i:ident, $e:expr) => {{
         let $i = 0; $e;
@@ -15,6 +18,14 @@ macro_rules! loop4 {
     }}
 }
 
+#[cfg(debug_assertions)]
+macro_rules! loop8 {
+    ($i:ident, $e:expr) => {
+        for $i in 0..8 { $e }
+    }
+}
+
+#[cfg(not(debug_assertions))]
 macro_rules! loop8 {
     ($i:ident, $e:expr) => {{
         let $i = 0; $e;
@@ -28,6 +39,14 @@ macro_rules! loop8 {
     }}
 }
 
+#[cfg(debug_assertions)]
+macro_rules! unroll_by_4 {
+    ($ntimes:expr, $e:expr) => {
+        for _ in 0..$ntimes { $e }
+    }
+}
+
+#[cfg(not(debug_assertions))]
 macro_rules! unroll_by_4 {
     ($ntimes:expr, $e:expr) => {{
         let k = $ntimes;
@@ -40,6 +59,14 @@ macro_rules! unroll_by_4 {
     }}
 }
 
+#[cfg(debug_assertions)]
+macro_rules! unroll_by_8 {
+    ($ntimes:expr, $e:expr) => {
+        for _ in 0..$ntimes { $e }
+    }
+}
+
+#[cfg(not(debug_assertions))]
 macro_rules! unroll_by_8 {
     ($ntimes:expr, $e:expr) => {{
         let k = $ntimes;
@@ -52,10 +79,3 @@ macro_rules! unroll_by_8 {
         }
     }}
 }
-
-macro_rules! shuf {
-    ($v:expr, $i:expr, $j:expr, $k:expr, $m:expr) => (
-        [$v[$i], $v[$j], $v[$k], $v[$m]]
-    );
-}
-

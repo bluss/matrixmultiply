@@ -75,7 +75,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
         let v0: [_; MR] = [at(a, 0), at(a, 1), at(a, 2), at(a, 3),
                            at(a, 4), at(a, 5), at(a, 6), at(a, 7)];
         let v1: [_; NR] = [at(b, 0), at(b, 1), at(b, 2), at(b, 3)];
-        loop8x4!(i, j, ab[i][j] += v0[i] * v1[j]);
+        loop8!(i, loop4!(j, ab[i][j] += v0[i] * v1[j]));
 
         a = a.offset(MR as isize);
         b = b.offset(NR as isize);
@@ -86,7 +86,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // set C = α A B
-    loop8x4!(i, j, *c![i, j] = alpha * ab[i    ][j]);
+    loop8!(i, loop4!(j, *c![i, j] = alpha * ab[i][j]));
 }
 
 #[inline(always)]

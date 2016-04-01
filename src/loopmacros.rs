@@ -28,12 +28,6 @@ macro_rules! loop8 {
     }}
 }
 
-macro_rules! loop8x4 {
-    ($i:ident, $j:ident, $e:expr) => {{
-        loop8!($i, loop4!($j, $e));
-    }}
-}
-
 macro_rules! unroll_by_4 {
     ($ntimes:expr, $e:expr) => {{
         let k = $ntimes;

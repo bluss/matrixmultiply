@@ -137,7 +137,7 @@ unsafe fn gemm_loop<K>(
             debug!(for elt in &mut bpack { *elt = <_>::one(); });
 
             // Pack B -> B~
-            pack::<K>(kc, nc, K::nr(), bpp, b, csb, rsb);
+            pack(kc, nc, K::nr(), bpp, b, csb, rsb);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
@@ -147,7 +147,7 @@ unsafe fn gemm_loop<K>(
                 debug!(for elt in &mut apack { *elt = <_>::one(); });
 
                 // Pack A -> A~
-                pack::<K>(kc, mc, K::mr(), app, a, rsa, csa);
+                pack(kc, mc, K::mr(), app, a, rsa, csa);
 
                 // First time writing to C, use user's `beta`, else accumulate
                 let betap = if l4 == 0 { beta } else { <_>::one() };
@@ -262,9 +262,9 @@ unsafe fn align_ptr<U>(align_to: usize, mut ptr: *mut U) -> *mut U {
 /// + rsa: row stride
 /// + csa: column stride
 /// + zero: zero element to pad with
-unsafe fn pack<K>(kc: usize, mc: usize, mr: usize, pack: *mut K::Elem,
-                  a: *const K::Elem, rsa: isize, csa: isize)
-    where K: GemmKernel,
+unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
+                  a: *const T, rsa: isize, csa: isize)
+    where T: Element
 {
     let mut pack = pack;
     for ir in 0..mc/mr {

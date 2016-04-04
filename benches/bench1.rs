@@ -150,7 +150,7 @@ fn reference_mat_mul<A>(m: usize, k: usize, n: usize, a: &[A], b: &[A], c: &mut 
     assert!(c.len() >= m * n);
 
     for i in 0..m {
-        for j in 0..k {
+        for j in 0..n {
             unsafe {
                 let celt = c.get_unchecked_mut(i * m + j);
                 *celt = (0..k).fold(A::zero(),

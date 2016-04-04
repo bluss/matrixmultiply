@@ -4,66 +4,11 @@ pub use matrixmultiply::sgemm;
 pub use matrixmultiply::dgemm;
 
 extern crate test;
-use test::Bencher;
 
-#[bench]
-fn mat_mul_128(bench: &mut Bencher) {
-    let (m, k, n) = (128, 128, 128);
-    let mut a = vec![0.; m * k]; 
-    let mut b = vec![0.; k * n];
-    let mut c = vec![0.; m * n];
-
-    for (i, elt) in a.iter_mut().enumerate() {
-        *elt = i as f32;
-    }
-    for i in 0..n {
-        b[i + i * n] = 1.;
-    }
-
-    bench.iter(|| {
-    unsafe {
-        sgemm(
-            m, k, n,
-            1.,
-            a.as_ptr(), k as isize, 1,
-            b.as_ptr(), n as isize, 1,
-            0.,
-            c.as_mut_ptr(), n as isize, 1,
-            )
-    }
-    });
-}
 
 // Compute GFlop/s
 // by flop / s = 2 M N K / time
 
-#[bench]
-fn mat_mul_512(bench: &mut Bencher) {
-    let (m, k, n) = (512, 512, 512);
-    let mut a = vec![0.; m * k]; 
-    let mut b = vec![0.; k * n];
-    let mut c = vec![0.; m * n];
-
-    for (i, elt) in a.iter_mut().enumerate() {
-        *elt = i as f32;
-    }
-    for i in 0..n {
-        b[i + i * n] = 1.;
-    }
-
-    bench.iter(|| {
-    unsafe {
-        sgemm(
-            m, k, n,
-            1.,
-            a.as_ptr(), k as isize, 1,
-            b.as_ptr(), n as isize, 1,
-            0.,
-            c.as_mut_ptr(), n as isize, 1,
-            )
-    }
-    });
-}
 
 macro_rules! mat_mul {
     ($modname:ident, $gemm:ident, $(($name:ident, $m:expr, $n:expr, $k:expr))+) => {
@@ -150,7 +95,7 @@ fn reference_mat_mul<A>(m: usize, k: usize, n: usize, a: &[A], b: &[A], c: &mut 
     assert!(c.len() >= m * n);
 
     for i in 0..m {
-        for j in 0..k {
+        for j in 0..n {
             unsafe {
                 let celt = c.get_unchecked_mut(i * m + j);
                 *celt = (0..k).fold(A::zero(),

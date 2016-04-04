@@ -19,6 +19,34 @@
 //! [bl]: https://github.com/flame/blis
 //! 
 //! [mt]: https://github.com/flame/blis/wiki/Multithreading
+//!
+//! ## Matrix Representation
+//!
+//! **matrixmultiply** supports matrices with general stride, so a matrix
+//! is passed using a pointer and four integers:
+//!
+//! - `a: *const f32`, pointer to the first element in the matrix
+//! - `m: usize`, number of rows
+//! - `k: usize`, number of columns
+//! - `rsa: isize`, row stride
+//! - `csa: isize`, column stride
+//!
+//! In this example, A is a m by k matrix. `a` is a pointer to the element at
+//! index *0, 0*.
+//!
+//! The *row stride* is the pointer offset (in number of elements) to the
+//! element on the next row. It’s the distance from element *i, j* to *i + 1,
+//! j*.
+//!
+//! The *column stride* is the pointer offset (in number of elements) to the
+//! element in the next column. It’s the distance from element *i, j* to *i,
+//! j + 1*.
+//!
+//! For example for a contiguous matrix, row major strides are *rsa=k,
+//! csa=1* and column major strides are *rsa=1, csa=m*.
+//!
+//! Stides can be negative or even zero, but for a mutable matrix elements
+//! may not alias each other.
 
 #[macro_use] mod debugmacros;
 #[macro_use] mod loopmacros;

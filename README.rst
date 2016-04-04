@@ -31,6 +31,11 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.7
+
+  - Reduce overhead slightly for small matrix multiplication problems by using
+    only one allocation call for both packing buffers.
+
 - 0.1.6
 
   - Disable manual loop unrolling in debug mode (quicker debug builds)

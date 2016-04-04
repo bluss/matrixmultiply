@@ -8,7 +8,6 @@
 
 use std::cmp::min;
 
-#[derive(Copy, Clone, Debug)]
 pub struct RangeChunk { i: usize, n: usize, chunk: usize }
 
 /// Create an iterator that splits `n` in chunks of size `chunk`;

@@ -114,6 +114,7 @@ unsafe fn gemm_loop<K>(
     c: *mut K::Elem, rsc: isize, csc: isize)
     where K: GemmKernel
 {
+    debug_assert!(m * n == 0 || (rsc != 0 && csc != 0));
     let knc = K::nc();
     let kkc = K::kc();
     let kmc = K::mc();

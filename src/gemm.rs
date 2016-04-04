@@ -118,10 +118,10 @@ unsafe fn gemm_loop<K>(
     let kkc = K::kc();
     let kmc = K::mc();
     ensure_kernel_params::<K>();
-    let mut apack = packing_vec::<K>(K::mc(), K::mr(), k, m);
-    let mut bpack = packing_vec::<K>(K::nc(), K::nr(), k, n);
-    let app = make_aligned_vec_ptr(K::align_to(), &mut apack);
-    let bpp = make_aligned_vec_ptr(K::align_to(), &mut bpack);
+
+    let (mut packv, bp_offset) = packing_vec::<K>(m, k, n);
+    let app = make_aligned_vec_ptr(K::align_to(), &mut packv);
+    let bpp = app.offset(bp_offset);
 
     // LOOP 5: split n into nc parts
     for (l5, nc) in range_chunk(n, knc) {
@@ -134,7 +134,7 @@ unsafe fn gemm_loop<K>(
             dprint!("LOOP 4, {}, kc={}", l4, kc);
             let b = b.stride_offset(rsb, kkc * l4);
             let a = a.stride_offset(csa, kkc * l4);
-            debug!(for elt in &mut bpack { *elt = <_>::one(); });
+            debug!(for elt in &mut packv { *elt = <_>::one(); });
 
             // Pack B -> B~
             pack(kc, nc, K::nr(), bpp, b, csb, rsb);
@@ -144,7 +144,6 @@ unsafe fn gemm_loop<K>(
                 dprint!("LOOP 3, {}, mc={}", l3, mc);
                 let a = a.stride_offset(rsa, kmc * l3);
                 let c = c.stride_offset(rsc, kmc * l3);
-                debug!(for elt in &mut apack { *elt = <_>::one(); });
 
                 // Pack A -> A~
                 pack(kc, mc, K::mr(), app, a, rsa, csa);
@@ -209,24 +208,34 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     }
 }
 
-/// Allocate a vector of uninitialized data for the packed buffers
+/// Allocate a vector of uninitialized data to be used for both packing buffers.
 ///
-/// For A, its size should be kc times mc, but we can make it smaller
-/// if the matrix is smaller than this (just ensure we have rounded up
-/// to a multiple of the kernel size).
-unsafe fn packing_vec<K>(mc_or_nc: usize, mr_or_nr: usize, k: usize, m: usize) -> Vec<K::Elem>
+/// + A~ needs be KC x MC
+/// + B~ needs be KC x NC
+/// but we can make them smaller if the matrix is smaller than this (just ensure
+/// we have rounded up to a multiple of the kernel size).
+///
+/// Return packing vector and offset to start of b
+unsafe fn packing_vec<K>(m: usize, k: usize, n: usize) -> (Vec<K::Elem>, isize)
     where K: GemmKernel,
 {
+    let m = min(m, K::mc());
     let k = min(k, K::kc());
-    let m = min(m, mc_or_nc);
+    let n = min(n, K::nc());
     // round up k, n to multiples of mr, nr
     // round up to multiple of kc
-    let nelem = min(K::kc() * mc_or_nc, k * round_up_to(m, mr_or_nr));
+    let apack_size = k * round_up_to(m, K::mr());
+    let bpack_size = k * round_up_to(n, K::nr());
+    let nelem = apack_size + bpack_size;
     let mut v = Vec::with_capacity(nelem);
     v.set_len(nelem);
-    dprint!("packed len={}, for mc={}, mr={}, k={}, m={}",
-            nelem, mc_or_nc, mr_or_nr, k, m);
-    v
+    dprint!("packed nelem={}, apack={}, bpack={},
+             m={} k={} n={}",
+             nelem, apack_size, bpack_size,
+             m,k,n);
+    // max alignment requirement is a multiple of min(MR, NR) * sizeof<Elem>
+    // because apack_size is a multiple of MR, start of b aligns fine
+    (v, apack_size as isize)
 }
 
 /// Align a pointer into the vec. Will reallocate to fit & shift the pointer

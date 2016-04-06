@@ -17,6 +17,12 @@ Please read the `API documentation here`__
 
 __ https://bluss.github.io/matrixmultiply/
 
+Blog posts about this crate:
+
++ `A Gemmed Rabbit Hole`__
+
+__ http://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
+
 |build_status|_ |crates|_
 
 .. |build_status| image:: https://travis-ci.org/bluss/matrixmultiply.svg?branch=master

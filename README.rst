@@ -37,6 +37,10 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.8
+
+  - Improved docs
+
 - 0.1.7
 
   - Reduce overhead slightly for small matrix multiplication problems by using

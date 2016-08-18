@@ -37,6 +37,10 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.9
+
+  - Workaround optimization regression in rust nightly (1.12-ish) (#9)
+
 - 0.1.8
 
   - Improved docs

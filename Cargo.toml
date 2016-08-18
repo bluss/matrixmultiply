@@ -16,3 +16,6 @@ keywords = ["matrix", "sgemm", "dgemm"]
 bench = false
 
 [dependencies]
+
+[dev-dependencies]
+bencher = "0.1"

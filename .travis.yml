@@ -20,7 +20,7 @@ script:
       travis-cargo test &&
       travis-cargo test -- --release &&
       travis-cargo doc &&
-      cargo run --example bench --release
+      cargo bench
 after_success:
   # upload the documentation (GH_TOKEN from env)
   - travis-cargo --only nightly doc-upload

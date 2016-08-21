@@ -15,7 +15,11 @@ keywords = ["matrix", "sgemm", "dgemm"]
 [lib]
 bench = false
 
+[[bench]]
+name = "benchmarks"
+harness = false
+
 [dependencies]
 
 [dev-dependencies]
-bencher = "0.1"
+bencher = "0.1.1"

@@ -39,20 +39,21 @@
 typedef int64_t dim_t;
 typedef int64_t inc_t;
 
-void bli_dgemm_asm_8x4(
-                        dim_t              k,
-                        double* restrict   alpha,
-                        double* restrict   a,
-                        double* restrict   b,
-                        double* restrict   beta,
-                        double* restrict   c, inc_t rs_c, inc_t cs_c
-                      )
+void bli_dgemm_asm_8x4
+     (
+       dim_t               k,
+       double*    restrict alpha,
+       double*    restrict a,
+       double*    restrict b,
+       double*    restrict beta,
+       double*    restrict c, inc_t rs_c, inc_t cs_c
+     )
 {
 	//void*   a_next = bli_auxinfo_next_a( data );
 	//void*   b_next = bli_auxinfo_next_b( data );
 
-	dim_t   k_iter = k / 4;
-	dim_t   k_left = k % 4;
+	uint64_t   k_iter = k / 4;
+	uint64_t   k_left = k % 4;
 
 	__asm__ volatile
 	(
@@ -377,23 +378,6 @@ void bli_dgemm_asm_8x4(
 	"leaq   (%%r12,%%rsi,1), %%r13               \n\t" // r13 = 3*rs_c;
 	"                                            \n\t"
 	"                                            \n\t"
-	"                                            \n\t"
-	"                                            \n\t" // determine if
-	"                                            \n\t" //    c    % 32 == 0, AND
-	"                                            \n\t" //  8*cs_c % 32 == 0, AND
-	"                                            \n\t" //    rs_c      == 1
-	"                                            \n\t" // ie: aligned, ldim aligned, and
-	"                                            \n\t" // column-stored
-	"                                            \n\t"
-	"cmpq       $8, %%rsi                        \n\t" // set ZF if (8*rs_c) == 8.
-	"sete           %%bl                         \n\t" // bl = ( ZF == 1 ? 1 : 0 );
-	"testq     $31, %%rcx                        \n\t" // set ZF if c & 32 is zero.
-	"setz           %%bh                         \n\t" // bh = ( ZF == 0 ? 1 : 0 );
-	"testq     $31, %%rdi                        \n\t" // set ZF if (8*cs_c) & 32 is zero.
-	"setz           %%al                         \n\t" // al = ( ZF == 0 ? 1 : 0 );
-	"                                            \n\t" // and(bl,bh) followed by
-	"                                            \n\t" // and(bh,al) will reveal result
-	"                                            \n\t"
 	"                                            \n\t" // now avoid loading C if beta == 0
 	"                                            \n\t"
 	"vxorpd    %%ymm0,  %%ymm0,  %%ymm0          \n\t" // set ymm0 to zero.
@@ -401,10 +385,8 @@ void bli_dgemm_asm_8x4(
 	"je      .DBETAZERO                          \n\t" // if ZF = 1, jump to beta == 0 case
 	"                                            \n\t"
 	"                                            \n\t"
-	"                                            \n\t" // check if aligned/column-stored
-	"andb     %%bl, %%bh                         \n\t" // set ZF if bl & bh == 1.
-	"andb     %%bh, %%al                         \n\t" // set ZF if bh & al == 1.
-	"jne     .DCOLSTORED                         \n\t" // jump to column storage case
+	"cmpq       $8, %%rsi                        \n\t" // set ZF if (8*cs_c) == 8.
+	"jz      .DCOLSTORED                         \n\t" // jump to column storage case
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
@@ -539,53 +521,53 @@ void bli_dgemm_asm_8x4(
 	".DCOLSTORED:                                \n\t"
 	"                                            \n\t" // update c00:c33
 	"                                            \n\t"
-	"vmovapd    (%%rcx),       %%ymm0            \n\t" // load c00:c30,
+	"vmovupd    (%%rcx),       %%ymm0            \n\t" // load c00:c30,
 	"vmulpd           %%ymm2,  %%ymm0,  %%ymm0   \n\t" // scale by beta,
 	"vaddpd           %%ymm9,  %%ymm0,  %%ymm0   \n\t" // add the gemm result,
-	"vmovapd          %%ymm0,  (%%rcx)           \n\t" // and store back to memory.
+	"vmovupd          %%ymm0,  (%%rcx)           \n\t" // and store back to memory.
 	"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd    (%%rcx),       %%ymm0            \n\t" // load c01:c31,
+	"vmovupd    (%%rcx),       %%ymm0            \n\t" // load c01:c31,
 	"vmulpd           %%ymm2,  %%ymm0,  %%ymm0   \n\t" // scale by beta,
 	"vaddpd           %%ymm11, %%ymm0,  %%ymm0   \n\t" // add the gemm result,
-	"vmovapd          %%ymm0,  (%%rcx)           \n\t" // and store back to memory.
+	"vmovupd          %%ymm0,  (%%rcx)           \n\t" // and store back to memory.
 	"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd    (%%rcx),       %%ymm0            \n\t" // load c02:c32,
+	"vmovupd    (%%rcx),       %%ymm0            \n\t" // load c02:c32,
 	"vmulpd           %%ymm2,  %%ymm0,  %%ymm0   \n\t" // scale by beta,
 	"vaddpd           %%ymm13, %%ymm0,  %%ymm0   \n\t" // add the gemm result,
-	"vmovapd          %%ymm0,  (%%rcx)           \n\t" // and store back to memory.
+	"vmovupd          %%ymm0,  (%%rcx)           \n\t" // and store back to memory.
 	"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd    (%%rcx),       %%ymm0            \n\t" // load c03:c33,
+	"vmovupd    (%%rcx),       %%ymm0            \n\t" // load c03:c33,
 	"vmulpd           %%ymm2,  %%ymm0,  %%ymm0   \n\t" // scale by beta,
 	"vaddpd           %%ymm15, %%ymm0,  %%ymm0   \n\t" // add the gemm result,
-	"vmovapd          %%ymm0,  (%%rcx)           \n\t" // and store back to memory.
+	"vmovupd          %%ymm0,  (%%rcx)           \n\t" // and store back to memory.
 	"                                            \n\t"
 	"                                            \n\t" // update c40:c73
 	"                                            \n\t"
-	"vmovapd    (%%rdx),       %%ymm0            \n\t" // load c40:c70,
+	"vmovupd    (%%rdx),       %%ymm0            \n\t" // load c40:c70,
 	"vmulpd           %%ymm2,  %%ymm0,  %%ymm0   \n\t" // scale by beta,
 	"vaddpd           %%ymm8,  %%ymm0,  %%ymm0   \n\t" // add the gemm result,
-	"vmovapd          %%ymm0,  (%%rdx)           \n\t" // and store back to memory.
+	"vmovupd          %%ymm0,  (%%rdx)           \n\t" // and store back to memory.
 	"addq      %%rdi, %%rdx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd    (%%rdx),       %%ymm0            \n\t" // load c41:c71,
+	"vmovupd    (%%rdx),       %%ymm0            \n\t" // load c41:c71,
 	"vmulpd           %%ymm2,  %%ymm0,  %%ymm0   \n\t" // scale by beta,
 	"vaddpd           %%ymm10, %%ymm0,  %%ymm0   \n\t" // add the gemm result,
-	"vmovapd          %%ymm0,  (%%rdx)           \n\t" // and store back to memory.
+	"vmovupd          %%ymm0,  (%%rdx)           \n\t" // and store back to memory.
 	"addq      %%rdi, %%rdx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd    (%%rdx),       %%ymm0            \n\t" // load c42:c72,
+	"vmovupd    (%%rdx),       %%ymm0            \n\t" // load c42:c72,
 	"vmulpd           %%ymm2,  %%ymm0,  %%ymm0   \n\t" // scale by beta,
 	"vaddpd           %%ymm12, %%ymm0,  %%ymm0   \n\t" // add the gemm result,
-	"vmovapd          %%ymm0,  (%%rdx)           \n\t" // and store back to memory.
+	"vmovupd          %%ymm0,  (%%rdx)           \n\t" // and store back to memory.
 	"addq      %%rdi, %%rdx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd    (%%rdx),       %%ymm0            \n\t" // load c43:c73,
+	"vmovupd    (%%rdx),       %%ymm0            \n\t" // load c43:c73,
 	"vmulpd           %%ymm2,  %%ymm0,  %%ymm0   \n\t" // scale by beta,
 	"vaddpd           %%ymm14, %%ymm0,  %%ymm0   \n\t" // add the gemm result,
-	"vmovapd          %%ymm0,  (%%rdx)           \n\t" // and store back to memory.
+	"vmovupd          %%ymm0,  (%%rdx)           \n\t" // and store back to memory.
 	"                                            \n\t"
 	"                                            \n\t"
 	"jmp    .DDONE                               \n\t" // jump to end.
@@ -594,10 +576,9 @@ void bli_dgemm_asm_8x4(
 	"                                            \n\t"
 	"                                            \n\t"
 	".DBETAZERO:                                 \n\t"
-	"                                            \n\t" // check if aligned/column-stored
-	"andb     %%bl, %%bh                         \n\t" // set ZF if bl & bh == 1.
-	"andb     %%bh, %%al                         \n\t" // set ZF if bh & al == 1.
-	"jne     .DCOLSTORBZ                         \n\t" // jump to column storage case
+	"                                            \n\t"
+	"cmpq       $8, %%rsi                        \n\t" // set ZF if (8*cs_c) == 8.
+	"jz      .DCOLSTORBZ                         \n\t" // jump to column storage case
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
@@ -668,29 +649,29 @@ void bli_dgemm_asm_8x4(
 	".DCOLSTORBZ:                                \n\t"
 	"                                            \n\t" // update c00:c33
 	"                                            \n\t"
-	"vmovapd          %%ymm9,  (%%rcx)           \n\t" // store c00:c30
+	"vmovupd          %%ymm9,  (%%rcx)           \n\t" // store c00:c30
 	"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd          %%ymm11, (%%rcx)           \n\t" // store c01:c31
+	"vmovupd          %%ymm11, (%%rcx)           \n\t" // store c01:c31
 	"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd          %%ymm13, (%%rcx)           \n\t" // store c02:c32
+	"vmovupd          %%ymm13, (%%rcx)           \n\t" // store c02:c32
 	"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd          %%ymm15, (%%rcx)           \n\t" // store c03:c33
+	"vmovupd          %%ymm15, (%%rcx)           \n\t" // store c03:c33
 	"                                            \n\t"
 	"                                            \n\t" // update c40:c73
 	"                                            \n\t"
-	"vmovapd          %%ymm8,  (%%rdx)           \n\t" // store c40:c70
+	"vmovupd          %%ymm8,  (%%rdx)           \n\t" // store c40:c70
 	"addq      %%rdi, %%rdx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd          %%ymm10, (%%rdx)           \n\t" // store c41:c71
+	"vmovupd          %%ymm10, (%%rdx)           \n\t" // store c41:c71
 	"addq      %%rdi, %%rdx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd          %%ymm12, (%%rdx)           \n\t" // store c42:c72
+	"vmovupd          %%ymm12, (%%rdx)           \n\t" // store c42:c72
 	"addq      %%rdi, %%rdx                      \n\t" // c += cs_c;
 	"                                            \n\t"
-	"vmovapd          %%ymm14, (%%rdx)           \n\t" // store c43:c73
+	"vmovupd          %%ymm14, (%%rdx)           \n\t" // store c43:c73
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
@@ -711,7 +692,7 @@ void bli_dgemm_asm_8x4(
 	  "m" (rs_c),   // 7
 	  "m" (cs_c)   // 8
 	  /*"m" (b_next), // 9
-	  "m" (a_next)*/  // 10
+	  "m" (a_next) */  // 10
 	: // register clobber list
 	  "rax", "rbx", "rcx", "rdx", "rsi", "rdi", 
 	  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",

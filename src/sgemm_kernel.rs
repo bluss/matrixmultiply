@@ -65,11 +65,12 @@ impl GemmKernel for Gemm {
 pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
                      beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    // using `zeroed` is a workaround for issue https://github.com/bluss/matrixmultiply/issues/9
-    let mut ab: [[T; NR]; MR] = ::std::mem::zeroed();
+    // using `uninitialized` is a workaround for issue https://github.com/bluss/matrixmultiply/issues/9
+    let mut ab: [[T; NR]; MR] = ::std::mem::uninitialized();
     let mut a = a;
     let mut b = b;
     debug_assert_eq!(beta, 0.); // always masked
+    loop4!(i, loop8!(j, ab[i][j] = 0.));
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by_4!(k, {

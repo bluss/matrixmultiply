@@ -14,7 +14,7 @@ pub enum Gemm { }
 pub type T = f32;
 
 const MR: usize = 4;
-const NR: usize = 8;
+const NR: usize = 4;
 
 impl GemmKernel for Gemm {
     type Elem = T;
@@ -72,11 +72,10 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     debug_assert_eq!(beta, 0.); // always masked
 
     // Compute matrix multiplication into ab[i][j]
-    unroll_by_8!(k, {
+    unroll_by_4!(k, {
         let v0: [_; MR] = [at(a, 0), at(a, 1), at(a, 2), at(a, 3)];
-        let v1: [_; NR] = [at(b, 0), at(b, 1), at(b, 2), at(b, 3),
-                           at(b, 4), at(b, 5), at(b, 6), at(b, 7)];
-        loop4!(i, loop8!(j, ab[i][j] += v0[i] * v1[j]));
+        let v1: [_; NR] = [at(b, 0), at(b, 1), at(b, 2), at(b, 3)];
+        loop4!(i, loop4!(j, ab[i][j] += v0[i] * v1[j]));
 
         a = a.offset(MR as isize);
         b = b.offset(NR as isize);
@@ -87,8 +86,10 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // set C = α A B
-    for j in 0..NR {
-        loop4!(i, *c![i, j] = alpha * ab[i][j]);
+    for i in 0..MR {
+        for j in 0..NR {
+            *c![i, j] = alpha * ab[i][j];
+        }
     }
 }
 
@@ -100,13 +101,13 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
 #[test]
 fn test_gemm_kernel() {
     let mut a = [1.; 16];
-    let mut b = [0.; 32];
+    let mut b = [0.; 16];
     for (i, x) in a.iter_mut().enumerate() {
         *x = i as f32;
     }
 
     for i in 0..4 {
-        b[i + i * 8] = 1.;
+        b[i + i * 4] = 1.;
     }
     let mut c = [0.; 16];
     unsafe {

@@ -72,7 +72,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     debug_assert_eq!(beta, 0.); // always masked
 
     // Compute matrix multiplication into ab[i][j]
-    unroll_by_8!(k, {
+    unroll_by_4!(k, {
         let v0: [_; MR] = [at(a, 0), at(a, 1), at(a, 2), at(a, 3)];
         let v1: [_; NR] = [at(b, 0), at(b, 1), at(b, 2), at(b, 3),
                            at(b, 4), at(b, 5), at(b, 6), at(b, 7)];
@@ -87,9 +87,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // set C = α A B
-    for j in 0..NR {
-        loop4!(i, *c![i, j] = alpha * ab[i][j]);
-    }
+    loop8!(j, loop4!(i, *c![i, j] = alpha * ab[i][j]));
 }
 
 #[inline(always)]

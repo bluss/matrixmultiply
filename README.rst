@@ -15,13 +15,13 @@ multithreading).
 
 Please read the `API documentation here`__
 
-__ https://bluss.github.io/matrixmultiply/
+__ https://docs.rs/matrixmultiply/
 
 Blog posts about this crate:
 
 + `A Gemmed Rabbit Hole`__
 
-__ http://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
+__ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 
 |build_status|_ |crates|_
 
@@ -36,6 +36,10 @@ that the compiler can produce the best output.**
 
 Recent Changes
 --------------
+
+- 0.1.11
+
+  - Adjust sgemm (f32) kernel to optimize better on recent Rust.
 
 - 0.1.10
 

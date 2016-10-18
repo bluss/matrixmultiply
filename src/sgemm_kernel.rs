@@ -107,11 +107,11 @@ fn test_gemm_kernel() {
     for i in 0..4 {
         b[i + i * 8] = 1.;
     }
-    let mut c = [0.; 16];
+    let mut c = [0.; 32];
     unsafe {
         kernel(4, 1., &a[0], &b[0], 0., &mut c[0], 1, 4);
         // col major C
     }
-    assert_eq!(&a, &c);
+    assert_eq!(&a, &c[..16]);
 }
 

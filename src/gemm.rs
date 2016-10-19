@@ -269,9 +269,10 @@ unsafe fn align_ptr<U>(align_to: usize, mut ptr: *mut U) -> *mut U {
 /// + kc: length of the micropanel
 /// + mc: number of rows/columns in the matrix to be packed
 /// + mr: kernel rows/columns that we round up to
+/// + pack: packing buffer
+/// + a: matrix,
 /// + rsa: row stride
 /// + csa: column stride
-/// + zero: zero element to pad with
 unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
                   a: *const T, rsa: isize, csa: isize)
     where T: Element

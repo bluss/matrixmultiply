@@ -81,10 +81,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by!(5 => k, {
-        let v0: [_; MR] = [at(a, 0), at(a, 1), at(a, 2), at(a, 3)];
-        let v1: [_; NR] = [at(b, 0), at(b, 1), at(b, 2), at(b, 3),
-                           at(b, 4), at(b, 5), at(b, 6), at(b, 7)];
-        loop_m!(i, loop_n!(j, ab[i][j] += v0[i] * v1[j]));
+        loop_m!(i, loop_n!(j, ab[i][j] += at(a, i) * at(b, j)));
 
         a = a.offset(MR as isize);
         b = b.offset(NR as isize);

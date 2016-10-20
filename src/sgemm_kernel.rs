@@ -16,6 +16,13 @@ pub type T = f32;
 const MR: usize = 4;
 const NR: usize = 8;
 
+macro_rules! loop_m {
+    ($i:ident, $e:expr) => { loop4!($i, $e) };
+}
+macro_rules! loop_n {
+    ($j:ident, $e:expr) => { loop8!($j, $e) };
+}
+
 impl GemmKernel for Gemm {
     type Elem = T;
 
@@ -70,14 +77,11 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     let mut a = a;
     let mut b = b;
     debug_assert_eq!(beta, 0.); // always masked
-    loop4!(i, loop8!(j, ab[i][j] = 0.));
+    loop_m!(i, loop_n!(j, ab[i][j] = 0.));
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by!(5 => k, {
-        let v0: [_; MR] = [at(a, 0), at(a, 1), at(a, 2), at(a, 3)];
-        let v1: [_; NR] = [at(b, 0), at(b, 1), at(b, 2), at(b, 3),
-                           at(b, 4), at(b, 5), at(b, 6), at(b, 7)];
-        loop4!(i, loop8!(j, ab[i][j] += v0[i] * v1[j]));
+        loop_m!(i, loop_n!(j, ab[i][j] += at(a, i) * at(b, j)));
 
         a = a.offset(MR as isize);
         b = b.offset(NR as isize);
@@ -88,7 +92,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // set C = α A B
-    loop8!(j, loop4!(i, *c![i, j] = alpha * ab[i][j]));
+    loop_n!(j, loop_m!(i, *c![i, j] = alpha * ab[i][j]));
 }
 
 #[inline(always)]

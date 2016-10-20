@@ -11,8 +11,6 @@ pub trait GemmKernel {
     type Elem: Element;
 
     /// align inputs to this
-    ///
-    /// NOTE: Not yet used.
     fn align_to() -> usize;
 
     /// Kernel rows

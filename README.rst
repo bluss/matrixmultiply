@@ -37,6 +37,10 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.12
+
+  - Internal cleanup with retained performance
+
 - 0.1.11
 
   - Adjust sgemm (f32) kernel to optimize better on recent Rust.

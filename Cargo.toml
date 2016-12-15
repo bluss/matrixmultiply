@@ -20,6 +20,7 @@ name = "benchmarks"
 harness = false
 
 [dependencies]
+rawpointer = "0.1"
 
 [dev-dependencies]
 bencher = "0.1.1"

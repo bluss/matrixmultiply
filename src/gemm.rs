@@ -16,7 +16,7 @@ use kernel::GemmKernel;
 use kernel::Element;
 use sgemm_kernel;
 use dgemm_kernel;
-use pointer::PointerExt;
+use rawpointer::PointerExt;
 
 /// General matrix multiplication (f32)
 ///

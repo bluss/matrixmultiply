@@ -50,6 +50,8 @@
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.1/")]
 
+extern crate rawpointer;
+
 #[macro_use] mod debugmacros;
 #[macro_use] mod loopmacros;
 mod archparam;
@@ -57,7 +59,6 @@ mod kernel;
 mod gemm;
 mod sgemm_kernel;
 mod dgemm_kernel;
-mod pointer;
 mod util;
 
 pub use gemm::sgemm;

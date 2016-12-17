@@ -13,15 +13,15 @@ pub enum Gemm { }
 
 pub type T = f32;
 
-const MR: usize = 4;
+const MR: usize = if_cfg!(sgemm_8x8, usize, 8, 4);
 const NR: usize = 8;
 
-macro_rules! loop_m {
-    ($i:ident, $e:expr) => { loop4!($i, $e) };
-}
-macro_rules! loop_n {
-    ($j:ident, $e:expr) => { loop8!($j, $e) };
-}
+#[cfg(sgemm_8x8)]
+macro_rules! loop_m { ($i:ident, $e:expr) => { loop8!($i, $e) }; }
+#[cfg(not(sgemm_8x8))]
+macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
+
+macro_rules! loop_n { ($j:ident, $e:expr) => { loop8!($j, $e) }; }
 
 impl GemmKernel for Gemm {
     type Elem = T;

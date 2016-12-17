@@ -23,4 +23,4 @@ harness = false
 rawpointer = "0.1"
 
 [dev-dependencies]
-bencher = "0.1.1"
+bencher = "0.1.2"

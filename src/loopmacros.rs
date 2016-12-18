@@ -6,6 +6,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+macro_rules! if_cfg {
+    ($id:ident, $type_:ty, $x:expr, $y:expr) => {{
+        #[cfg($id)]
+        const TMP: $type_ = $x;
+        #[cfg(not($id))]
+        const TMP: $type_ = $y;
+        TMP
+    }}
+}
 
 // Unroll only in non-debug builds
 

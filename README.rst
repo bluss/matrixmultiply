@@ -37,6 +37,13 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.13
+
+  - Pick 8x8 sgemm (f32) kernel when AVX target feature is enabled
+    (with Rust 1.14 or later, no effect otherwise).
+  - Use ``rawpointer``, a µcrate with raw pointer methods taken from this
+    project.
+
 - 0.1.12
 
   - Internal cleanup with retained performance

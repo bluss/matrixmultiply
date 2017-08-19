@@ -18,6 +18,7 @@ macro_rules! if_cfg {
 
 // Unroll only in non-debug builds
 
+#[cfg(not(debug_assertions))]
 macro_rules! repeat {
     (1 $e:expr) => { $e; };
     (2 $e:expr) => { $e;$e; };

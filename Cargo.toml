@@ -1,6 +1,6 @@
 [package]
 name = "matrixmultiply"
-version = "0.1.13"
+version = "0.1.14"
 authors = ["bluss"]
 
 license = "MIT/Apache-2.0"
@@ -26,3 +26,6 @@ rawpointer = "0.1"
 
 [dev-dependencies]
 bencher = "0.1.2"
+
+[package.metadata.release]
+no-dev-version = true

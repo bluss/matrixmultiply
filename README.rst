@@ -1,3 +1,5 @@
+matrixmultiply
+==============
 
 General matrix multiplication for f32, f64 matrices.
 
@@ -36,6 +38,10 @@ that the compiler can produce the best output.**
 
 Recent Changes
 --------------
+
+- 0.1.14
+
+  - Avoid an unused code warning
 
 - 0.1.13
 

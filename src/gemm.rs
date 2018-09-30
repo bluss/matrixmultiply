@@ -115,6 +115,21 @@ unsafe fn gemm_loop<K>(
     where K: GemmKernel
 {
     debug_assert!(m * n == 0 || (rsc != 0 && csc != 0));
+    // if A or B have no elements, compute C ← βC and return
+    if m == 0 || k == 0 || n == 0 {
+        for i in 0..m {
+            for j in 0..n {
+                let cptr = c.offset(rsc * i as isize + csc * j as isize);
+                if beta.is_zero() {
+                    *cptr = K::Elem::zero(); // initialize C
+                } else {
+                    (*cptr).scale_by(beta);
+                }
+            }
+        }
+        return;
+    }
+
     let knc = K::nc();
     let kkc = K::kc();
     let kmc = K::mc();

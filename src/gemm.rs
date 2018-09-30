@@ -114,7 +114,8 @@ unsafe fn gemm_loop<K>(
     c: *mut K::Elem, rsc: isize, csc: isize)
     where K: GemmKernel
 {
-    debug_assert!(m * n == 0 || (rsc != 0 && csc != 0));
+    debug_assert!(m <= 1 || n == 0 || rsc != 0);
+    debug_assert!(m == 0 || n <= 1 || csc != 0);
     // if A or B have no elements, compute C ← βC and return
     if m == 0 || k == 0 || n == 0 {
         for i in 0..m {

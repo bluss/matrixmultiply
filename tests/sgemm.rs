@@ -108,6 +108,9 @@ fn test_gemm<F>() where F: Gemm + Float {
         }
     }
     test_mul_id_with::<F>(266, 265, false);
+    test_scale::<F>(0, 4, 4, true);
+    test_scale::<F>(4, 0, 4, true);
+    test_scale::<F>(4, 4, 0, true);
     test_scale::<F>(4, 4, 4, true);
     test_scale::<F>(19, 20, 16, true);
     test_scale::<F>(150, 140, 128, false);

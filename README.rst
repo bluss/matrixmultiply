@@ -39,6 +39,13 @@ that the compiler can produce the best output.**
 Recent Changes
 --------------
 
+- 0.1.15
+
+  - Fix bug where the result matrix C was not updated in the case of a M × K by
+    K × N matrix multiplication where K was zero. (This resulted in the output
+    C potentially being left uninitialized or with incorrect values in this
+    specific scenario.) By @jturner314 (PR #21)
+
 - 0.1.14
 
   - Avoid an unused code warning

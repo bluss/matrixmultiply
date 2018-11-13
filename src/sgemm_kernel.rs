@@ -122,11 +122,30 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
         c2 = _mm_setzero_ps();
         c3 = _mm_setzero_ps();
     } else {
+        // Read C
+        if csc == 1 {
+            c0 = _mm_loadu_ps(c![0, 0]);
+            c1 = _mm_loadu_ps(c![1, 0]);
+            c2 = _mm_loadu_ps(c![2, 0]);
+            c3 = _mm_loadu_ps(c![3, 0]);
+        } else if rsc == 1 {
+            c0 = _mm_loadu_ps(c![0, 0]);
+            c1 = _mm_loadu_ps(c![0, 1]);
+            c2 = _mm_loadu_ps(c![0, 2]);
+            c3 = _mm_loadu_ps(c![0, 3]);
+            _MM_TRANSPOSE4_PS(
+                &mut c0,
+                &mut c1,
+                &mut c2,
+                &mut c3,
+                );
+        } else {
+            c0 = _mm_set_ps(*c![0, 3], *c![0, 2], *c![0, 1], *c![0, 0]);
+            c1 = _mm_set_ps(*c![1, 3], *c![1, 2], *c![1, 1], *c![1, 0]);
+            c2 = _mm_set_ps(*c![2, 3], *c![2, 2], *c![2, 1], *c![2, 0]);
+            c3 = _mm_set_ps(*c![3, 3], *c![3, 2], *c![3, 1], *c![3, 0]);
+        }
         // Compute β C
-        c0 = _mm_set_ps(*c![0, 3], *c![0, 2], *c![0, 1], *c![0, 0]);
-        c1 = _mm_set_ps(*c![1, 3], *c![1, 2], *c![1, 1], *c![1, 0]);
-        c2 = _mm_set_ps(*c![2, 3], *c![2, 2], *c![2, 1], *c![2, 0]);
-        c3 = _mm_set_ps(*c![3, 3], *c![3, 2], *c![3, 1], *c![3, 0]);
         c0 = _mm_mul_ps(c0, betav);
         c1 = _mm_mul_ps(c1, betav);
         c2 = _mm_mul_ps(c2, betav);
@@ -140,25 +159,43 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     c3 = _mm_add_ps(c3, ab3);
 
     // Store C back to memory
-    *c![0, 0] = _mm_cvtss_f32(c0);
-    *c![1, 0] = _mm_cvtss_f32(c1);
-    *c![2, 0] = _mm_cvtss_f32(c2);
-    *c![3, 0] = _mm_cvtss_f32(c3);
+    if csc == 1 {
+        _mm_storeu_ps(c![0, 0], c0);
+        _mm_storeu_ps(c![1, 0], c1);
+        _mm_storeu_ps(c![2, 0], c2);
+        _mm_storeu_ps(c![3, 0], c3);
+    } else if rsc == 1 {
+        _MM_TRANSPOSE4_PS(
+            &mut c0,
+            &mut c1,
+            &mut c2,
+            &mut c3,
+            );
+        _mm_storeu_ps(c![0, 0], c0);
+        _mm_storeu_ps(c![0, 1], c1);
+        _mm_storeu_ps(c![0, 2], c2);
+        _mm_storeu_ps(c![0, 3], c3);
+    } else {
+        *c![0, 0] = _mm_cvtss_f32(c0);
+        *c![1, 0] = _mm_cvtss_f32(c1);
+        *c![2, 0] = _mm_cvtss_f32(c2);
+        *c![3, 0] = _mm_cvtss_f32(c3);
 
-    *c![0, 1] = _mm_cvtss_f32(_mm_shuffle_ps(c0, c0, 1));
-    *c![1, 1] = _mm_cvtss_f32(_mm_shuffle_ps(c1, c1, 1));
-    *c![2, 1] = _mm_cvtss_f32(_mm_shuffle_ps(c2, c2, 1));
-    *c![3, 1] = _mm_cvtss_f32(_mm_shuffle_ps(c3, c3, 1));
+        *c![0, 1] = _mm_cvtss_f32(_mm_shuffle_ps(c0, c0, 1));
+        *c![1, 1] = _mm_cvtss_f32(_mm_shuffle_ps(c1, c1, 1));
+        *c![2, 1] = _mm_cvtss_f32(_mm_shuffle_ps(c2, c2, 1));
+        *c![3, 1] = _mm_cvtss_f32(_mm_shuffle_ps(c3, c3, 1));
 
-    *c![0, 2] = _mm_cvtss_f32(_mm_shuffle_ps(c0, c0, 2));
-    *c![1, 2] = _mm_cvtss_f32(_mm_shuffle_ps(c1, c1, 2));
-    *c![2, 2] = _mm_cvtss_f32(_mm_shuffle_ps(c2, c2, 2));
-    *c![3, 2] = _mm_cvtss_f32(_mm_shuffle_ps(c3, c3, 2));
+        *c![0, 2] = _mm_cvtss_f32(_mm_shuffle_ps(c0, c0, 2));
+        *c![1, 2] = _mm_cvtss_f32(_mm_shuffle_ps(c1, c1, 2));
+        *c![2, 2] = _mm_cvtss_f32(_mm_shuffle_ps(c2, c2, 2));
+        *c![3, 2] = _mm_cvtss_f32(_mm_shuffle_ps(c3, c3, 2));
 
-    *c![0, 3] = _mm_cvtss_f32(_mm_shuffle_ps(c0, c0, 3));
-    *c![1, 3] = _mm_cvtss_f32(_mm_shuffle_ps(c1, c1, 3));
-    *c![2, 3] = _mm_cvtss_f32(_mm_shuffle_ps(c2, c2, 3));
-    *c![3, 3] = _mm_cvtss_f32(_mm_shuffle_ps(c3, c3, 3));
+        *c![0, 3] = _mm_cvtss_f32(_mm_shuffle_ps(c0, c0, 3));
+        *c![1, 3] = _mm_cvtss_f32(_mm_shuffle_ps(c1, c1, 3));
+        *c![2, 3] = _mm_cvtss_f32(_mm_shuffle_ps(c2, c2, 3));
+        *c![3, 3] = _mm_cvtss_f32(_mm_shuffle_ps(c3, c3, 3));
+    }
 }
 
 #[inline(always)]

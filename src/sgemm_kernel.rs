@@ -19,17 +19,17 @@ pub enum Gemm { }
 
 pub type T = f32;
 
-const MR: usize = 4;
-const NR: usize = 4;
+const MR: usize = 8;
+const NR: usize = 8;
 
-macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
-macro_rules! loop_n { ($j:ident, $e:expr) => { loop4!($j, $e) }; }
+macro_rules! loop_m { ($i:ident, $e:expr) => { loop8!($i, $e) }; }
+macro_rules! loop_n { ($j:ident, $e:expr) => { loop8!($j, $e) }; }
 
 impl GemmKernel for Gemm {
     type Elem = T;
 
     #[inline(always)]
-    fn align_to() -> usize { 16 }
+    fn align_to() -> usize { 32 }
 
     #[inline(always)]
     fn mr() -> usize { MR }
@@ -92,7 +92,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
 pub unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
                          beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    kernel_x86_sse(k, alpha, a, b, beta, c, rsc, csc)
+    kernel_x86_avx(k, alpha, a, b, beta, c, rsc, csc)
 }
 
 #[inline]
@@ -187,6 +187,83 @@ pub unsafe fn kernel_x86_sse(k: usize, alpha: T, a: *const T, b: *const T,
     }
 }
 
+#[inline(always)]
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
+                             beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    let mut ab = [_mm256_setzero_ps(); MR];
+
+    let mut bv;
+    let (mut a, mut b) = (a, b);
+
+    // Compute A B
+    unroll_by!(4 => k, {
+        bv = _mm256_load_ps(b as _); // aligned due to GemmKernel::align_to
+
+        loop_m!(i, {
+            // Compute ab_i += [ai b_j+0, ai b_j+1, ai b_j+2, ai b_j+3]
+            let aiv = _mm256_set1_ps(at(a, i));
+            ab[i] = _mm256_add_ps(ab[i], _mm256_mul_ps(aiv, bv));
+        });
+
+        a = a.add(MR);
+        b = b.add(NR);
+    });
+
+    // Compute α (A B)
+    let alphav = _mm256_set1_ps(alpha);
+    loop_m!(i, ab[i] = _mm256_mul_ps(alphav, ab[i]));
+
+    macro_rules! c {
+        ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
+    }
+
+    // C ← α A B + β C
+    let mut c = [_mm256_setzero_ps(); MR];
+    let betav = _mm256_set1_ps(beta);
+    if beta != 0. {
+        // Read C
+        if csc == 1 {
+            loop_m!(i, c[i] = _mm256_loadu_ps(c![i, 0]));
+        /*} else if rsc == 1 {
+            loop_m!(i, c[i] = _mm256_loadu_ps(c![0, i]));
+            mm_transpose4!(c[0], c[1], c[2], c[3]);
+            */
+        } else {
+            loop_m!(i, c[i] = _mm256_set_ps(*c![i, 7], *c![i, 6], *c![i, 5], *c![i, 4], *c![i, 3], *c![i, 2], *c![i, 1], *c![i, 0]));
+        }
+        // Compute β C
+        loop_m!(i, c[i] = _mm256_mul_ps(c[i], betav));
+    }
+
+    // Compute (α A B) + (β C)
+    loop_m!(i, c[i] = _mm256_add_ps(c[i], ab[i]));
+
+    // Store C back to memory
+    if csc == 1 {
+        loop_m!(i, _mm256_storeu_ps(c![i, 0], c[i]));
+    /*} else if rsc == 1 {
+        mm_transpose4!(c[0], c[1], c[2], c[3]);
+        loop_m!(i, _mm256_storeu_ps(c![0, i], c[i]));
+        */
+    } else {
+        // extract the nth value of a vector using _mm256_cvtss_f32 (extract lowest)
+        // in combination with shuffle (move nth value to first position)
+        for i in 0..MR {
+            *c![i, 0] = _mm256_cvtss_f32(c[i]);
+            *c![i, 1] = _mm256_cvtss_f32(_mm256_permute_ps(c[i], 1));
+            *c![i, 2] = _mm256_cvtss_f32(_mm256_permute_ps(c[i], 2));
+            *c![i, 3] = _mm256_cvtss_f32(_mm256_permute_ps(c[i], 3));
+
+            c[i] = _mm256_permute2f128_ps(c[i], c[i], 1);
+            *c![i, 4] = _mm256_cvtss_f32(c[i]);
+            *c![i, 5] = _mm256_cvtss_f32(_mm256_permute_ps(c[i], 1));
+            *c![i, 6] = _mm256_cvtss_f32(_mm256_permute_ps(c[i], 2));
+            *c![i, 7] = _mm256_cvtss_f32(_mm256_permute_ps(c[i], 3));
+        }
+    }
+}
 
 pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
                                    beta: T, c: *mut T, rsc: isize, csc: isize)

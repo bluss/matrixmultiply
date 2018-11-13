@@ -17,7 +17,7 @@ impl<T> Alloc<T> {
         let layout = Layout::from_size_align(mem::size_of::<T>() * len, align).unwrap();
         #[cfg(not(debug_assertions))]
         let layout = Layout::from_size_align_unchecked(mem::size_of::<T>() * len, align);
-        let ptr = System.alloc(layout);
+        let ptr = std::alloc::alloc(layout);
         if ptr.is_null() {
             handle_alloc_error(layout);
         }
@@ -45,7 +45,7 @@ impl<T> Drop for Alloc<T> {
     fn drop(&mut self) {
         unsafe {
             let layout = Layout::from_size_align_unchecked(mem::size_of::<T>() * self.len, self.align);
-            System.dealloc(self.ptr as _, layout);
+            std::alloc::dealloc(self.ptr as _, layout);
         }
     }
 }

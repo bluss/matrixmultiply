@@ -29,7 +29,7 @@ impl GemmKernel for Gemm {
     type Elem = T;
 
     #[inline(always)]
-    fn align_to() -> usize { 0 }
+    fn align_to() -> usize { 16 }
 
     #[inline(always)]
     fn mr() -> usize { MR }
@@ -117,7 +117,7 @@ pub unsafe fn kernel_x86_sse(k: usize, alpha: T, a: *const T, b: *const T,
 
     // Compute A B
     for _ in 0..k {
-        bv = _mm_loadu_ps(b as _);
+        bv = _mm_load_ps(b as _); // aligned due to GemmKernel::align_to
 
         let a0 = _mm_set1_ps(at(a, 0));
         ab0 = _mm_add_ps(ab0, _mm_mul_ps(a0, bv));
@@ -271,8 +271,8 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
 #[test]
 fn test_gemm_kernel() {
     const K: usize = 4;
-    let mut a = [1.; MR * K];
-    let mut b = [0.; NR * K];
+    let mut a = vec![1.; MR * K];
+    let mut b = vec![0.; NR * K];
     for (i, x) in a.iter_mut().enumerate() {
         *x = i as f32;
     }
@@ -285,6 +285,6 @@ fn test_gemm_kernel() {
         kernel(K, 1., &a[0], &b[0], 0., &mut c[0], 1, MR as isize);
         // col major C
     }
-    assert_eq!(&a, &c[..a.len()]);
+    assert_eq!(a, &c[..a.len()]);
 }
 

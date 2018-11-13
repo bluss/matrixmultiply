@@ -25,6 +25,22 @@ const NR: usize = 8;
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop8!($i, $e) }; }
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop8!($j, $e) }; }
 
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+macro_rules! compile_env_enabled {
+    ($($name:tt)*) => {
+        !option_env!($($name)*).unwrap_or("").is_empty()
+    }
+}
+
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+macro_rules! is_x86_feature_detected_ {
+    ($name:tt) => {
+        // for testing purposes, we can disable a feature at compile time by
+        // setting MMNO_avx=1 etc.
+        !compile_env_enabled!(concat!("MMNO_", $name)) && is_x86_feature_detected!($name)
+    }
+}
+
 impl GemmKernel for Gemm {
     type Elem = T;
 
@@ -77,9 +93,9 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     // dispatch to specific compiled versions
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
-        if is_x86_feature_detected!("avx") {
+        if is_x86_feature_detected_!("avx") {
             return kernel_target_avx(k, alpha, a, b, beta, c, rsc, csc);
-        } else if is_x86_feature_detected!("sse") {
+        } else if is_x86_feature_detected_!("sse") {
             return kernel_target_sse(k, alpha, a, b, beta, c, rsc, csc);
         }
     }

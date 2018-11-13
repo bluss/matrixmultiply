@@ -395,14 +395,15 @@ mod tests {
         }
     }
 
+    use super::T;
+    type KernelFn = unsafe fn(usize, T, *const T, *const T, T, *mut T, isize, isize);
 
-    #[test]
-    fn test_gemm_kernel() {
+    fn test_a_kernel(_name: &str, kernel_fn: KernelFn) {
         const K: usize = 4;
         let mut a = aligned_alloc(1., MR * K);
         let mut b = aligned_alloc(0., NR * K);
         for (i, x) in a.iter_mut().enumerate() {
-            *x = i as f32;
+            *x = i as _;
         }
 
         for i in 0..K {
@@ -410,10 +411,20 @@ mod tests {
         }
         let mut c = [0.; MR * NR];
         unsafe {
-            kernel(K, 1., &a[0], &b[0], 0., &mut c[0], 1, MR as isize);
+            kernel_fn(K, 1., &a[0], &b[0], 0., &mut c[0], 1, MR as isize);
             // col major C
         }
         assert_eq!(&a[..], &c[..a.len()]);
+    }
+
+    #[test]
+    fn test_native_kernel() {
+        test_a_kernel("kernel", kernel);
+    }
+
+    #[test]
+    fn test_kernel_fallback_impl() {
+        test_a_kernel("kernel", kernel_fallback_impl);
     }
 
     #[test]
@@ -424,6 +435,30 @@ mod tests {
             for elt in &arr[..] {
                 assert_eq!(*elt, 1);
             }
+        }
+    }
+
+    mod test_arch_kernels {
+        use super::test_a_kernel;
+        macro_rules! test_arch_kernels_x86 {
+            ($($feature_name:tt, $function_name:ident),*) => {
+                $(
+                #[test]
+                fn $function_name() {
+                    if is_x86_feature_detected_!($feature_name) {
+                        test_a_kernel(stringify!($function_name), super::super::$function_name);
+                    } else {
+                        println!("Skipping, host does not have feature: {:?}", $feature_name);
+                    }
+                }
+                )*
+            }
+        }
+
+        #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+        test_arch_kernels_x86! {
+            "avx", kernel_target_avx,
+            "sse2", kernel_target_sse2
         }
     }
 }

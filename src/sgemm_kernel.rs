@@ -111,7 +111,6 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 {
     let mut ab = [_mm256_setzero_ps(); MR];
 
-    let mut bv;
     let (mut a, mut b) = (a, b);
 
     macro_rules! shuffle_mask {
@@ -133,58 +132,60 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 
     // Compute A B
     unroll_by!(4 => k, {
-        bv = _mm256_load_ps(b as _); // aligned due to GemmKernel::align_to
 
-        // vmovsldup ymm2, ymmword ptr [rbx]
+        // We compute abij = ai bj
         //
-        // Load and duplicate each even word:
-        // ymm2 ← [b0 b0 b2 b2 b4 b4 b6 b6]
+        // Load b as one contiguous vector
+        // Load a as striped vectors
         //
-        // vmovshdup ymm2, ymmword ptr [rbx]
+        // Shuffle the abij elements in order after the loop.
         //
-        // Load and duplicate each odd word:
-        // ymm2 ← [b1 b1 b3 b3 b5 b5 b7 b7]
+        // Note this scheme copied and transposed from the BLIS 8x8 sgemm
+        // microkernel.
         //
+        // Our a indices are striped and our b indices are linear. In
+        // the variable names below, we always have doubled indices so
+        // for example a0246 corresponds to a vector of a0 a0 a2 a2 a4 a4 a6 a6.
         //
-        // vpermil ymm3, ymm2, 0x4e
-        // 0x4e is 0b1001110 which corresponds to selecting:
-        //  2, 3, 0, 1
-        // _mm256_permute_ps is a shuffle in each 128-bit lane.
+        // ab0246: ab2064: ab4602: ab6420:
+        // ( ab00  ( ab20  ( ab40  ( ab60
+        //   ab01    ab21    ab41    ab61
+        //   ab22    ab02    ab62    ab42
+        //   ab23    ab03    ab63    ab43
+        //   ab44    ab64    ab04    ab24
+        //   ab45    ab65    ab05    ab25
+        //   ab66    ab46    ab26    ab06
+        //   ab67 )  ab47 )  ab27 )  ab07 )
         //
-        // see blis kernel comments about the layout
-        //
-        // BLIS runs the main loop with this result parameter layout,
-        // then shuffles everything in place post accumulation.
-        //
-	 // ymm15:  ymm13:  ymm11:  ymm9:
-	 // ( ab00  ( ab02  ( ab04  ( ab06
-	 //   ab10    ab12    ab14    ab16  
-	 //   ab22    ab20    ab26    ab24
-	 //   ab32    ab30    ab36    ab34
-	 //   ab44    ab46    ab40    ab42
-	 //   ab54    ab56    ab50    ab52  
-	 //   ab66    ab64    ab62    ab60
-	 //   ab76 )  ab74 )  ab72 )  ab70 )
-	
-	 // ymm14:  ymm12:  ymm10:  ymm8:
-	 // ( ab01  ( ab03  ( ab05  ( ab07
-	 //   ab11    ab13    ab15    ab17  
-	 //   ab23    ab21    ab27    ab25
-	 //   ab33    ab31    ab37    ab35
-	 //   ab45    ab47    ab41    ab43
-	 //   ab55    ab57    ab51    ab53  
-	 //   ab67    ab65    ab63    ab61
-	 //   ab77 )  ab75 )  ab73 )  ab71 )
-        //
-        // 
+        // ab1357: ab3175: ab5713: ab7531:
+        // ( ab10  ( ab30  ( ab50  ( ab70
+        //   ab11    ab31    ab51    ab71
+        //   ab32    ab12    ab72    ab52
+        //   ab33    ab13    ab73    ab53
+        //   ab54    ab74    ab14    ab34
+        //   ab55    ab75    ab15    ab35
+        //   ab76    ab56    ab36    ab16
+        //   ab77 )  ab57 )  ab37 )  ab17 )
+
+        let bv = _mm256_load_ps(b as _); // aligned due to GemmKernel::align_to
 
         const PERM32_2301: i32 = permute_mask!(1, 0, 3, 2);
         const PERM128_30: i32 = permute2f128_mask!(0, 3);
-        // Compute ab_i += [ai b_j+0, ai b_j+1, ai b_j+2, ai b_j+3]
+
         let av = _mm256_load_ps(a);
 
-        // 2 permute_ps per iteration
-        // 4 permute2f128 per iteration
+        // _mm256_moveldup_ps(av):
+        // vmovsldup ymm2, ymmword ptr [rax]
+        //
+        // Load and duplicate each even word:
+        // ymm2 ← [a0 a0 a2 a2 a4 a4 a6 a6]
+        //
+        // _mm256_movehdup_ps(av):
+        // vmovshdup ymm2, ymmword ptr [rax]
+        //
+        // Load and duplicate each odd word:
+        // ymm2 ← [a1 a1 a3 a3 a5 a5 a7 a7]
+        //
 
         let a0246 = _mm256_moveldup_ps(av); // Load: a0 a0 a2 a2 a4 a4 a6 a6
         let a2064 = _mm256_permute_ps(a0246, PERM32_2301);
@@ -216,56 +217,14 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     let alphav = _mm256_set1_ps(alpha);
     loop_m!(i, ab[i] = _mm256_mul_ps(alphav, ab[i]));
 
-    // Permute to get back to:
-    // ab00 ab10  ... etc
-    // ab01 ab11  
-    // ab02 ab12  
-    // ab03 ab13  
-    // ab04 ab14  
-    // ab05 ab15  
-    // ab06 ab16  
-    // ab07 ab17  
+    // Permute to put the abij elements in order
     //
-    // They use order:
+    // shufps 0xe4: 22006644 00224466 -> 22226666
     //
-    // 02
-    // 20
-    // 46
-    // 64
-    // 13
-    // 31
-    // 57
-    // 75
-    //
-    //  // 22006644
-    //  // 00224466
-    //  //
-    //  // shufps 0xe4 ->
-    //  //
-    //  // 22226666
-    //
-    // shufps 20 02, 0xe4 -> new reg
-    // shufps 02 20, 0xe4 -> new reg
-    //
-    // shufps 64 46, 0xe4 -> new reg
-    // shufps 46 64, 0xe4 -> new reg
-    //
-    // shufps 31 13, 0xe4 -> new reg
-    // shufps 13 31, 0xe4 -> new reg
-    //
-    // shufps 75 57, 0xe4 -> new reg
-    // shufps 57 75, 0xe4 -> new reg
-    //
-    // 0xe4 is 0b11100100 corresponding to 0, 1, 2, 3
-    //
-    // vperm2f128 0x30 -> 0b110000 is 0: DEST[127:0]←SRC1[127:0] AND 3: DEST[255:128]←SRC2[255:128]
-    // vperm2f128 0x12 ->  0b10010 is 2: DEST[127:0]←SRC2[127:0] AND 1: DEST[255:128]←SRC1[255:128]
-    //
-    // vperm2 0x30: 00004444 and 44440000 -> 00000000 
-    // vperm2 0x12: 00004444 and 44440000 -> 44444444 
+    // vperm2 0x30: 00004444 44440000 -> 00000000
+    // vperm2 0x12: 00004444 44440000 -> 44444444
     //
     
-    // shuffle and permute to bring the result in the right order post main loop
     let ab0246 = ab[0];
     let ab2064 = ab[1];
     let ab4602 = ab[2];
@@ -279,8 +238,8 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     const SHUF_0123: i32 = shuffle_mask!(3, 2, 1, 0);
     debug_assert_eq!(SHUF_0123, 0xE4);
 
-    const PERM128_03: i32 = permute2f128_mask!(3, 0); //0b110000;
-    const PERM128_21: i32 = permute2f128_mask!(1, 2); //0b010010;
+    const PERM128_03: i32 = permute2f128_mask!(3, 0);
+    const PERM128_21: i32 = permute2f128_mask!(1, 2);
 
     let ab0044 = _mm256_shuffle_ps(ab0246, ab2064, SHUF_0123);
     let ab2266 = _mm256_shuffle_ps(ab2064, ab0246, SHUF_0123);

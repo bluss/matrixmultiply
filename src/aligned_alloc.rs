@@ -11,20 +11,20 @@ pub(crate) struct Alloc<T> { ptr: *mut T, len: usize, align: usize }
 
 impl<T> Alloc<T> {
     #[inline]
-    pub unsafe fn new(len: usize, align: usize) -> Self {
+    pub unsafe fn new(nelem: usize, align: usize) -> Self {
         let align = cmp::max(align, mem::align_of::<T>());
         #[cfg(debug_assertions)]
-        let layout = Layout::from_size_align(mem::size_of::<T>() * len, align).unwrap();
+        let layout = Layout::from_size_align(mem::size_of::<T>() * nelem, align).unwrap();
         #[cfg(not(debug_assertions))]
-        let layout = Layout::from_size_align_unchecked(mem::size_of::<T>() * len, align);
-        dprint!("Allocating nelem={}, size={} align={}", len, mem::size_of::<T>() * len, align);
+        let layout = Layout::from_size_align_unchecked(mem::size_of::<T>() * nelem, align);
+        dprint!("Allocating nelem={}, layout={:?}", nelem, layout);
         let ptr = std::alloc::alloc(layout);
         if ptr.is_null() {
             handle_alloc_error(layout);
         }
         Alloc {
             ptr: ptr as *mut T,
-            len,
+            len: nelem,
             align,
         }
     }

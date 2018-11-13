@@ -6,8 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cmp::{min, max};
-use std::mem::{align_of, size_of};
+use std::cmp::min;
+use std::mem::size_of;
 
 use aligned_alloc::Alloc;
 
@@ -253,10 +253,7 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize) -> (Alloc<K::Elem
              nelem, apack_size, bpack_size,
              m,k,n);
 
-    let whole_size = size_of::<K::Elem>() * nelem;
-    let alignment = max(align_of::<K::Elem>(), K::align_to());
-
-    (Alloc::new(whole_size, alignment), apack_size)
+    (Alloc::new(nelem, K::align_to()), apack_size)
 }
 
 /// offset the ptr forwards to align to a specific byte count

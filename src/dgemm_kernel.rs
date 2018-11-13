@@ -106,12 +106,10 @@ pub unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
 pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
                                    beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    // using `uninitialized` is a workaround for issue https://github.com/bluss/matrixmultiply/issues/9
-    let mut ab: [[T; NR]; MR] = ::std::mem::uninitialized();
+    let mut ab: [[T; NR]; MR] = [[0.; NR]; MR];
     let mut a = a;
     let mut b = b;
     debug_assert_eq!(beta, 0.); // always masked
-    loop_m!(i, loop_n!(j, ab[i][j] = 0.));
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by!(4 => k, {

@@ -288,3 +288,13 @@ fn test_gemm_kernel() {
     assert_eq!(a, &c[..a.len()]);
 }
 
+#[test]
+fn test_loop_m_n() {
+    let mut m = [[0; NR]; MR];
+    loop_m!(i, loop_n!(j, m[i][j] += 1));
+    for arr in &m[..] {
+        for elt in &arr[..] {
+            assert_eq!(*elt, 1);
+        }
+    }
+}

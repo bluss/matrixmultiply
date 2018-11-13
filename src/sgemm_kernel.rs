@@ -29,7 +29,7 @@ impl GemmKernel for Gemm {
     type Elem = T;
 
     #[inline(always)]
-    fn align_to() -> usize { 32 }
+    fn align_to() -> usize { 16 }
 
     #[inline(always)]
     fn mr() -> usize { MR }
@@ -171,12 +171,12 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
         //   ab76    ab56    ab36    ab16
         //   ab77 )  ab57 )  ab37 )  ab17 )
 
-        let bv = _mm256_load_ps(b as _); // aligned due to GemmKernel::align_to
+        let bv = _mm256_loadu_ps(b as _); // aligned due to GemmKernel::align_to
 
         const PERM32_2301: i32 = permute_mask!(1, 0, 3, 2);
         const PERM128_30: i32 = permute2f128_mask!(0, 3);
 
-        let av = _mm256_load_ps(a);
+        let av = _mm256_loadu_ps(a);
 
         // _mm256_moveldup_ps(av):
         // vmovsldup ymm2, ymmword ptr [rax]

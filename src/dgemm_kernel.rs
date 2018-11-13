@@ -75,9 +75,9 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     // dispatch to specific compiled versions
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
-        if is_x86_feature_detected!("avx") {
+        if is_x86_feature_detected_!("avx") {
             return kernel_target_avx(k, alpha, a, b, beta, c, rsc, csc);
-        } else if is_x86_feature_detected!("sse2") {
+        } else if is_x86_feature_detected_!("sse2") {
             return kernel_target_sse2(k, alpha, a, b, beta, c, rsc, csc);
         }
     }

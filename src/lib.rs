@@ -52,6 +52,7 @@
 
 extern crate rawpointer;
 
+#[macro_use] mod archmacros_x86;
 #[macro_use] mod debugmacros;
 #[macro_use] mod loopmacros;
 mod archparam;

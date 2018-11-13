@@ -109,6 +109,8 @@ unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
 unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
                          beta: T, c: *mut T, rsc: isize, csc: isize)
 {
+    debug_assert_ne!(k, 0);
+
     let mut ab = [_mm256_setzero_ps(); MR];
 
     // this kernel can operate in either transposition (C = A B or C^T = B^T A^T)
@@ -134,9 +136,12 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
         }
     }
 
-    // Compute A B
-    unroll_by!(4 => k, {
+    // Start data load before each iteration
+    let mut av = _mm256_loadu_ps(a);
+    let mut bv = _mm256_loadu_ps(b);
 
+    // Compute A B
+    unroll_by_with_last!(4 => k, is_last, {
         // We compute abij = ai bj
         //
         // Load b as one contiguous vector
@@ -171,12 +176,8 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
         //   ab76    ab56    ab36    ab16
         //   ab77 )  ab57 )  ab37 )  ab17 )
 
-        let bv = _mm256_loadu_ps(b as _); // aligned due to GemmKernel::align_to
-
         const PERM32_2301: i32 = permute_mask!(1, 0, 3, 2);
         const PERM128_30: i32 = permute2f128_mask!(0, 3);
-
-        let av = _mm256_loadu_ps(a);
 
         // _mm256_moveldup_ps(av):
         // vmovsldup ymm2, ymmword ptr [rax]
@@ -213,8 +214,13 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
         ab[6] = _mm256_add_ps(ab[6], _mm256_mul_ps(a5713, bv));
         ab[7] = _mm256_add_ps(ab[7], _mm256_mul_ps(a7531, bv));
 
-        a = a.add(MR);
-        b = b.add(NR);
+        if !is_last {
+            a = a.add(MR);
+            b = b.add(NR);
+
+            bv = _mm256_loadu_ps(b);
+            av = _mm256_loadu_ps(a);
+        }
     });
 
     let alphav = _mm256_set1_ps(alpha);

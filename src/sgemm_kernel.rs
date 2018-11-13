@@ -8,6 +8,11 @@
 
 use kernel::GemmKernel;
 use archparam;
+
+
+#[cfg(target_arch="x86")]
+use std::arch::x86::*;
+#[cfg(target_arch="x86_64")]
 use std::arch::x86_64::*;
 
 pub enum Gemm { }
@@ -69,10 +74,42 @@ impl GemmKernel for Gemm {
 /// + rsc: row stride of c
 /// + csc: col stride of c
 /// + if beta is 0, then c does not need to be initialized
-//#[inline(always)]
-//#[target_feature(enable="sse2")]
+#[inline(always)]
 pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
                      beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    // dispatch to specific compiled versions
+    #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+    {
+        if is_x86_feature_detected!("avx") {
+            return kernel_target_avx(k, alpha, a, b, beta, c, rsc, csc);
+        } else if is_x86_feature_detected!("sse") {
+            return kernel_target_sse(k, alpha, a, b, beta, c, rsc, csc);
+        }
+    }
+    unimplemented!()
+}
+
+#[target_feature(enable="avx")]
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+pub unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
+                         beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    kernel_impl(k, alpha, a, b, beta, c, rsc, csc)
+}
+
+#[target_feature(enable="sse")]
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+pub unsafe fn kernel_target_sse(k: usize, alpha: T, a: *const T, b: *const T,
+                          beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    kernel_impl(k, alpha, a, b, beta, c, rsc, csc)
+}
+
+#[inline(always)]
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+pub unsafe fn kernel_impl(k: usize, alpha: T, a: *const T, b: *const T,
+                          beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     let mut ab0 = _mm_setzero_ps();
     let mut ab1 = _mm_setzero_ps();

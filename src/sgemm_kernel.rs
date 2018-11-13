@@ -22,11 +22,7 @@ pub type T = f32;
 const MR: usize = 4;
 const NR: usize = 4;
 
-#[cfg(sgemm_8x8)]
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
-#[cfg(not(sgemm_8x8))]
-macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
-
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop4!($j, $e) }; }
 
 impl GemmKernel for Gemm {
@@ -87,7 +83,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
             return kernel_target_sse(k, alpha, a, b, beta, c, rsc, csc);
         }
     }
-    unimplemented!()
+    kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc);
 }
 
 #[target_feature(enable="avx")]
@@ -95,7 +91,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
 pub unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
                          beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    kernel_impl(k, alpha, a, b, beta, c, rsc, csc)
+    kernel_x86_sse(k, alpha, a, b, beta, c, rsc, csc)
 }
 
 #[target_feature(enable="sse")]
@@ -103,13 +99,13 @@ pub unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
 pub unsafe fn kernel_target_sse(k: usize, alpha: T, a: *const T, b: *const T,
                           beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    kernel_impl(k, alpha, a, b, beta, c, rsc, csc)
+    kernel_x86_sse(k, alpha, a, b, beta, c, rsc, csc)
 }
 
 #[inline(always)]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-pub unsafe fn kernel_impl(k: usize, alpha: T, a: *const T, b: *const T,
-                          beta: T, c: *mut T, rsc: isize, csc: isize)
+pub unsafe fn kernel_x86_sse(k: usize, alpha: T, a: *const T, b: *const T,
+                             beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     let mut ab0 = _mm_setzero_ps();
     let mut ab1 = _mm_setzero_ps();
@@ -213,6 +209,8 @@ pub unsafe fn kernel_impl(k: usize, alpha: T, a: *const T, b: *const T,
         _mm_storeu_ps(c![0, 2], c2);
         _mm_storeu_ps(c![0, 3], c3);
     } else {
+        // extract the nth value of a vector using _mm_cvtss_f32 (extract lowest)
+        // in combination with shuffle (move nth value to first position)
         *c![0, 0] = _mm_cvtss_f32(c0);
         *c![1, 0] = _mm_cvtss_f32(c1);
         *c![2, 0] = _mm_cvtss_f32(c2);
@@ -235,6 +233,36 @@ pub unsafe fn kernel_impl(k: usize, alpha: T, a: *const T, b: *const T,
     }
 }
 
+
+pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
+                                   beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    // using `uninitialized` is a workaround for issue https://github.com/bluss/matrixmultiply/issues/9
+    let mut ab: [[T; NR]; MR] = ::std::mem::uninitialized();
+    let mut a = a;
+    let mut b = b;
+    loop_m!(i, loop_n!(j, ab[i][j] = 0.));
+
+    // Compute A B into ab[i][j]
+    unroll_by!(4 => k, {
+        loop_m!(i, loop_n!(j, ab[i][j] += at(a, i) * at(b, j)));
+
+        a = a.offset(MR as isize);
+        b = b.offset(NR as isize);
+    });
+
+    macro_rules! c {
+        ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
+    }
+
+    // set C = α A B + β C
+    if beta == 0. {
+        loop_n!(j, loop_m!(i, *c![i, j] = alpha * ab[i][j]));
+    } else {
+        loop_n!(j, loop_m!(i, *c![i, j] = *c![i, j] * beta + alpha * ab[i][j]));
+    }
+}
+
 #[inline(always)]
 unsafe fn at(ptr: *const T, i: usize) -> T {
     *ptr.offset(i as isize)
@@ -242,20 +270,21 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
 
 #[test]
 fn test_gemm_kernel() {
-    let mut a = [1.; 16];
-    let mut b = [0.; 32];
+    const K: usize = 4;
+    let mut a = [1.; MR * K];
+    let mut b = [0.; NR * K];
     for (i, x) in a.iter_mut().enumerate() {
         *x = i as f32;
     }
 
-    for i in 0..4 {
-        b[i + i * 8] = 1.;
+    for i in 0..K {
+        b[i + i * NR] = 1.;
     }
-    let mut c = [0.; 32];
+    let mut c = [0.; MR * NR];
     unsafe {
-        kernel(4, 1., &a[0], &b[0], 0., &mut c[0], 1, 4);
+        kernel(K, 1., &a[0], &b[0], 0., &mut c[0], 1, MR as isize);
         // col major C
     }
-    assert_eq!(&a, &c[..16]);
+    assert_eq!(&a, &c[..a.len()]);
 }
 

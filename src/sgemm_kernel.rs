@@ -241,6 +241,19 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     const PERM128_03: i32 = permute2f128_mask!(3, 0);
     const PERM128_21: i32 = permute2f128_mask!(1, 2);
 
+    // No elements are "shuffled" in truth, they all stay at their index
+    // but we combine vectors to de-stripe them.
+    //
+    // For example, the first shuffle below uses 0 1 2 3 which
+    // corresponds to the X0 X1 Y2 Y3 sequence etc:
+    //
+    //                                             variable
+    // X ab00 ab01 ab22 ab23 ab44 ab45 ab66 ab67   ab0246
+    // Y ab20 ab21 ab02 ab03 ab64 ab65 ab46 ab47   ab2064
+    // 
+    //   X0   X1   Y2   Y3   X4   X5   Y6   Y7
+    // = ab00 ab01 ab02 ab03 ab44 ab45 ab46 ab47   ab0044
+
     let ab0044 = _mm256_shuffle_ps(ab0246, ab2064, SHUF_0123);
     let ab2266 = _mm256_shuffle_ps(ab2064, ab0246, SHUF_0123);
 

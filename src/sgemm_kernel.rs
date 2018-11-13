@@ -199,13 +199,78 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 
     // Compute A B
     unroll_by!(4 => k, {
-        bv = _mm256_load_ps(b as _); // aligned due to GemmKernel::align_to
+        bv = _mm256_loadu_ps(b as _); // aligned due to GemmKernel::align_to
 
-        loop_m!(i, {
-            // Compute ab_i += [ai b_j+0, ai b_j+1, ai b_j+2, ai b_j+3]
-            let aiv = _mm256_set1_ps(at(a, i));
-            ab[i] = _mm256_add_ps(ab[i], _mm256_mul_ps(aiv, bv));
-        });
+        // vmovsldup ymm2, ymmword ptr [rbx]
+        //
+        // Load and duplicate each even word:
+        // ymm2 ← [b0 b0 b2 b2 b4 b4 b6 b6]
+        //
+        // vmovshdup ymm2, ymmword ptr [rbx]
+        //
+        // Load and duplicate each odd word:
+        // ymm2 ← [b1 b1 b3 b3 b5 b5 b7 b7]
+        //
+        //
+        // vpermil ymm3, ymm2, 0x4e
+        // 0x4e is 0b1001110 which corresponds to selecting:
+        //  2, 3, 0, 1
+        // _mm256_permute_ps is a shuffle in each 128-bit lane.
+        //
+        // see blis kernel comments about the layout
+        //
+        // BLIS runs the main loop with this result parameter layout,
+        // then shuffles everything in place post accumulation.
+        //
+	 // ymm15:  ymm13:  ymm11:  ymm9:
+	 // ( ab00  ( ab02  ( ab04  ( ab06
+	 //   ab10    ab12    ab14    ab16  
+	 //   ab22    ab20    ab26    ab24
+	 //   ab32    ab30    ab36    ab34
+	 //   ab44    ab46    ab40    ab42
+	 //   ab54    ab56    ab50    ab52  
+	 //   ab66    ab64    ab62    ab60
+	 //   ab76 )  ab74 )  ab72 )  ab70 )
+	
+	 // ymm14:  ymm12:  ymm10:  ymm8:
+	 // ( ab01  ( ab03  ( ab05  ( ab07
+	 //   ab11    ab13    ab15    ab17  
+	 //   ab23    ab21    ab27    ab25
+	 //   ab33    ab31    ab37    ab35
+	 //   ab45    ab47    ab41    ab43
+	 //   ab55    ab57    ab51    ab53  
+	 //   ab67    ab65    ab63    ab61
+	 //   ab77 )  ab75 )  ab73 )  ab71 )
+        //
+        // 
+
+        // Compute ab_i += [ai b_j+0, ai b_j+1, ai b_j+2, ai b_j+3]
+        let av = _mm256_loadu_ps(a);
+
+        // 2 permute_ps per iteration
+        // 4 permute2f128 per iteration
+
+        let a0246 = _mm256_moveldup_ps(av); // Load: a0 a0 a2 a2 a4 a4 a6 a6
+        let a2064 = _mm256_permute_ps(a0246, 0x4e);
+
+        let a1357 = _mm256_movehdup_ps(av); // Load: a1 a1 a3 a3 a5 a5 a7 a7
+        let a3175 = _mm256_permute_ps(a1357, 0x4e);
+
+        let a4602 = _mm256_permute2f128_ps(a0246, a0246, 0x03);
+        let a6420 = _mm256_permute2f128_ps(a2064, a2064, 0x03);
+
+        let a5713 = _mm256_permute2f128_ps(a1357, a1357, 0x03);
+        let a7531 = _mm256_permute2f128_ps(a3175, a3175, 0x03);
+
+        ab[0] = _mm256_add_ps(ab[0], _mm256_mul_ps(a0246, bv));
+        ab[1] = _mm256_add_ps(ab[1], _mm256_mul_ps(a2064, bv));
+        ab[2] = _mm256_add_ps(ab[2], _mm256_mul_ps(a4602, bv));
+        ab[3] = _mm256_add_ps(ab[3], _mm256_mul_ps(a6420, bv));
+
+        ab[4] = _mm256_add_ps(ab[4], _mm256_mul_ps(a1357, bv));
+        ab[5] = _mm256_add_ps(ab[5], _mm256_mul_ps(a3175, bv));
+        ab[6] = _mm256_add_ps(ab[6], _mm256_mul_ps(a5713, bv));
+        ab[7] = _mm256_add_ps(ab[7], _mm256_mul_ps(a7531, bv));
 
         a = a.add(MR);
         b = b.add(NR);
@@ -214,6 +279,104 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     // Compute α (A B)
     let alphav = _mm256_set1_ps(alpha);
     loop_m!(i, ab[i] = _mm256_mul_ps(alphav, ab[i]));
+
+    // Permute to get back to:
+    // ab00 ab10  ... etc
+    // ab01 ab11  
+    // ab02 ab12  
+    // ab03 ab13  
+    // ab04 ab14  
+    // ab05 ab15  
+    // ab06 ab16  
+    // ab07 ab17  
+    //
+    // They use order:
+    //
+    // 02
+    // 20
+    // 46
+    // 64
+    // 13
+    // 31
+    // 57
+    // 75
+    //
+    //  // 22006644
+    //  // 00224466
+    //  //
+    //  // shufps 0xe4 ->
+    //  //
+    //  // 22226666
+    //
+    // shufps 20 02, 0xe4 -> new reg
+    // shufps 02 20, 0xe4 -> new reg
+    //
+    // shufps 64 46, 0xe4 -> new reg
+    // shufps 46 64, 0xe4 -> new reg
+    //
+    // shufps 31 13, 0xe4 -> new reg
+    // shufps 13 31, 0xe4 -> new reg
+    //
+    // shufps 75 57, 0xe4 -> new reg
+    // shufps 57 75, 0xe4 -> new reg
+    //
+    // 0xe4 is 0b11100100 corresponding to 0, 1, 2, 3
+    //
+    // vperm2f128 0x30 -> 0b110000 is 0: DEST[127:0]←SRC1[127:0] AND 3: DEST[255:128]←SRC2[255:128]
+    // vperm2f128 0x12 ->  0b10010 is 2: DEST[127:0]←SRC2[127:0] AND 1: DEST[255:128]←SRC1[255:128]
+    //
+    // vperm2 0x30: 00004444 and 44440000 -> 00000000 
+    // vperm2 0x12: 00004444 and 44440000 -> 44444444 
+    //
+    
+    let ab0246 = ab[0];
+    let ab2064 = ab[1];
+    let ab4602 = ab[2];
+    let ab6420 = ab[3];
+
+    let ab1357 = ab[4];
+    let ab3175 = ab[5];
+    let ab5713 = ab[6];
+    let ab7531 = ab[7];
+
+    const SHUF_0123: i32 = 0b11100100;
+    debug_assert_eq!(SHUF_0123, 0xE4);
+
+    const PERM2_03: i32 = 0b110000;
+    const PERM2_21: i32 = 0b010010;
+
+    let ab0044 = _mm256_shuffle_ps(ab0246, ab2064, SHUF_0123);
+    let ab2266 = _mm256_shuffle_ps(ab2064, ab0246, SHUF_0123);
+
+    let ab4400 = _mm256_shuffle_ps(ab4602, ab6420, SHUF_0123);
+    let ab6622 = _mm256_shuffle_ps(ab6420, ab4602, SHUF_0123);
+
+    let ab1155 = _mm256_shuffle_ps(ab1357, ab3175, SHUF_0123);
+    let ab3377 = _mm256_shuffle_ps(ab3175, ab1357, SHUF_0123);
+
+    let ab5511 = _mm256_shuffle_ps(ab5713, ab7531, SHUF_0123);
+    let ab7733 = _mm256_shuffle_ps(ab7531, ab5713, SHUF_0123);
+
+    let ab0000 = _mm256_permute2f128_ps(ab0044, ab4400, PERM2_03);
+    let ab4444 = _mm256_permute2f128_ps(ab0044, ab4400, PERM2_21);
+
+    let ab2222 = _mm256_permute2f128_ps(ab2266, ab6622, PERM2_03);
+    let ab6666 = _mm256_permute2f128_ps(ab2266, ab6622, PERM2_21);
+
+    let ab1111 = _mm256_permute2f128_ps(ab1155, ab5511, PERM2_03);
+    let ab5555 = _mm256_permute2f128_ps(ab1155, ab5511, PERM2_21);
+
+    let ab3333 = _mm256_permute2f128_ps(ab3377, ab7733, PERM2_03);
+    let ab7777 = _mm256_permute2f128_ps(ab3377, ab7733, PERM2_21);
+
+    ab[0] = ab0000;
+    ab[1] = ab1111;
+    ab[2] = ab2222;
+    ab[3] = ab3333;
+    ab[4] = ab4444;
+    ab[5] = ab5555;
+    ab[6] = ab6666;
+    ab[7] = ab7777;
 
     macro_rules! c {
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));

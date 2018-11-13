@@ -1,5 +1,5 @@
 
-use std::alloc::{Layout, GlobalAlloc, System, handle_alloc_error};
+use std::alloc::{Layout, handle_alloc_error};
 use std::{mem, cmp};
 
 #[cfg(test)]

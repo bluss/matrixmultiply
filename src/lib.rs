@@ -60,6 +60,7 @@ mod gemm;
 mod sgemm_kernel;
 mod dgemm_kernel;
 mod util;
+mod aligned_alloc;
 
 pub use gemm::sgemm;
 pub use gemm::dgemm;

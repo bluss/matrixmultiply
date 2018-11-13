@@ -237,11 +237,9 @@ pub unsafe fn kernel_x86_sse(k: usize, alpha: T, a: *const T, b: *const T,
 pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
                                    beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    // using `uninitialized` is a workaround for issue https://github.com/bluss/matrixmultiply/issues/9
-    let mut ab: [[T; NR]; MR] = ::std::mem::uninitialized();
+    let mut ab: [[T; NR]; MR] = [[0.; NR]; MR];
     let mut a = a;
     let mut b = b;
-    loop_m!(i, loop_n!(j, ab[i][j] = 0.));
 
     // Compute A B into ab[i][j]
     unroll_by!(4 => k, {

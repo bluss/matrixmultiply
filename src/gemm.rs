@@ -153,7 +153,6 @@ unsafe fn gemm_loop<K>(
             dprint!("LOOP 4, {}, kc={}", l4, kc);
             let b = b.stride_offset(rsb, kkc * l4);
             let a = a.stride_offset(csa, kkc * l4);
-            debug!(for elt in &mut packv { *elt = <_>::one(); });
 
             // Pack B -> B~
             pack(kc, nc, K::nr(), bpp, b, csb, rsb);

@@ -17,6 +17,7 @@ impl<T> Alloc<T> {
         let layout = Layout::from_size_align(mem::size_of::<T>() * len, align).unwrap();
         #[cfg(not(debug_assertions))]
         let layout = Layout::from_size_align_unchecked(mem::size_of::<T>() * len, align);
+        dprint!("Allocating nelem={}, size={} align={}", len, mem::size_of::<T>() * len, align);
         let ptr = std::alloc::alloc(layout);
         if ptr.is_null() {
             handle_alloc_error(layout);

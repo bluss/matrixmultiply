@@ -3,6 +3,9 @@ sudo: false
 
 matrix:
   include:
+    - rust: 1.28.0
+      env:
+        TARGET=x86_64-unknown-linux-gnu
     - rust: stable
       env:
         TARGET=x86_64-unknown-linux-gnu

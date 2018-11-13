@@ -500,106 +500,46 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
 }
 
 #[cfg(test)]
-use std::alloc::{Layout, GlobalAlloc, System, handle_alloc_error};
-#[cfg(test)]
-use std::{mem, slice, cmp};
-#[cfg(test)]
-use std::ops::{Deref, DerefMut};
+mod tests {
+    use super::*;
+    use aligned_alloc::Alloc;
 
-#[cfg(test)]
-struct Alloc<T> { ptr: *mut T, len: usize, align: usize }
-
-#[cfg(test)]
-impl<T> Alloc<T> {
-    pub fn new(len: usize, align: usize) -> Self {
-        unsafe {
-            let align = cmp::max(align, mem::align_of::<T>());
-            let layout = Layout::from_size_align(mem::size_of::<T>() * len, align).unwrap();
-            let ptr = System.alloc(layout);
-            if ptr.is_null() {
-                handle_alloc_error(layout);
-            }
-            Alloc {
-                ptr: ptr as *mut T,
-                len,
-                align,
-            }
-        }
-    }
-
-    pub fn init_with(mut self, elt: T) -> Alloc<T> where T: Copy
+    fn aligned_alloc<T>(elt: T, n: usize) -> Alloc<T> where T: Copy
     {
-        for elt1 in &mut self[..] {
-            *elt1 = elt;
-        }
-        self
-    }
-
-    pub fn ptr_mut(&mut self) -> *mut T { self.ptr }
-}
-
-#[cfg(test)]
-impl<T> Drop for Alloc<T> {
-    fn drop(&mut self) {
-        let layout = Layout::from_size_align(mem::size_of::<T>() * self.len, self.align).unwrap();
         unsafe {
-            System.dealloc(self.ptr as _, layout);
+            Alloc::new(n, Gemm::align_to()).init_with(elt)
         }
     }
-}
 
-#[cfg(test)]
-impl<T> Deref for Alloc<T> {
-    type Target = [T];
-    fn deref(&self) -> &[T] {
+
+    #[test]
+    fn test_gemm_kernel() {
+        const K: usize = 4;
+        let mut a = aligned_alloc(1., MR * K);
+        let mut b = aligned_alloc(0., NR * K);
+        for (i, x) in a.iter_mut().enumerate() {
+            *x = i as f32;
+        }
+
+        for i in 0..K {
+            b[i + i * NR] = 1.;
+        }
+        let mut c = [0.; MR * NR];
         unsafe {
-            slice::from_raw_parts(self.ptr, self.len)
+            kernel(K, 1., &a[0], &b[0], 0., &mut c[0], 1, MR as isize);
+            // col major C
         }
-    }
-}
-
-#[cfg(test)]
-impl<T> DerefMut for Alloc<T> {
-    fn deref_mut(&mut self) -> &mut [T] {
-        unsafe {
-            slice::from_raw_parts_mut(self.ptr, self.len)
-        }
-    }
-}
-
-#[cfg(test)]
-fn aligned_alloc<T>(elt: T, n: usize) -> Alloc<T> where T: Copy
-{
-    Alloc::new(n, Gemm::align_to()).init_with(elt)
-}
-
-#[test]
-fn test_gemm_kernel() {
-    const K: usize = 4;
-    let mut a = aligned_alloc(1., MR * K);
-    let mut b = aligned_alloc(0., NR * K);
-    for (i, x) in a.iter_mut().enumerate() {
-        *x = i as f32;
+        assert_eq!(&a[..], &c[..a.len()]);
     }
 
-    for i in 0..K {
-        b[i + i * NR] = 1.;
-    }
-    let mut c = [0.; MR * NR];
-    unsafe {
-        kernel(K, 1., &a[0], &b[0], 0., &mut c[0], 1, MR as isize);
-        // col major C
-    }
-    assert_eq!(&a[..], &c[..a.len()]);
-}
-
-#[test]
-fn test_loop_m_n() {
-    let mut m = [[0; NR]; MR];
-    loop_m!(i, loop_n!(j, m[i][j] += 1));
-    for arr in &m[..] {
-        for elt in &arr[..] {
-            assert_eq!(*elt, 1);
+    #[test]
+    fn test_loop_m_n() {
+        let mut m = [[0; NR]; MR];
+        loop_m!(i, loop_n!(j, m[i][j] += 1));
+        for arr in &m[..] {
+            for elt in &arr[..] {
+                assert_eq!(*elt, 1);
+            }
         }
     }
 }

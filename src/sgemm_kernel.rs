@@ -217,9 +217,7 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
         b = b.add(NR);
     });
 
-    // Compute α (A B)
     let alphav = _mm256_set1_ps(alpha);
-    loop_m!(i, ab[i] = _mm256_mul_ps(alphav, ab[i]));
 
     // Permute to put the abij elements in order
     //
@@ -290,6 +288,9 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     ab[5] = ab5555;
     ab[6] = ab6666;
     ab[7] = ab7777;
+
+    // Compute α (A B)
+    loop_m!(i, ab[i] = _mm256_mul_ps(alphav, ab[i]));
 
     macro_rules! c {
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));

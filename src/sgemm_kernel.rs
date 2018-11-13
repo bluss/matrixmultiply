@@ -197,9 +197,26 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     let mut bv;
     let (mut a, mut b) = (a, b);
 
+    macro_rules! shuffle_mask {
+        ($z:expr, $y:expr, $x:expr, $w:expr) => {
+            (($z << 6) | ($y << 4) | ($x << 2) | $w)
+        }
+    }
+    macro_rules! permute_mask {
+        ($z:expr, $y:expr, $x:expr, $w:expr) => {
+            (($z << 6) | ($y << 4) | ($x << 2) | $w)
+        }
+    }
+
+    macro_rules! permute2f128_mask {
+        ($y:expr, $x:expr) => {
+            (($y << 4) | $x)
+        }
+    }
+
     // Compute A B
     unroll_by!(4 => k, {
-        bv = _mm256_loadu_ps(b as _); // aligned due to GemmKernel::align_to
+        bv = _mm256_load_ps(b as _); // aligned due to GemmKernel::align_to
 
         // vmovsldup ymm2, ymmword ptr [rbx]
         //
@@ -244,23 +261,25 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
         //
         // 
 
+        const PERM32_2301: i32 = permute_mask!(1, 0, 3, 2);
+        const PERM128_30: i32 = permute2f128_mask!(0, 3);
         // Compute ab_i += [ai b_j+0, ai b_j+1, ai b_j+2, ai b_j+3]
-        let av = _mm256_loadu_ps(a);
+        let av = _mm256_load_ps(a);
 
         // 2 permute_ps per iteration
         // 4 permute2f128 per iteration
 
         let a0246 = _mm256_moveldup_ps(av); // Load: a0 a0 a2 a2 a4 a4 a6 a6
-        let a2064 = _mm256_permute_ps(a0246, 0x4e);
+        let a2064 = _mm256_permute_ps(a0246, PERM32_2301);
 
         let a1357 = _mm256_movehdup_ps(av); // Load: a1 a1 a3 a3 a5 a5 a7 a7
-        let a3175 = _mm256_permute_ps(a1357, 0x4e);
+        let a3175 = _mm256_permute_ps(a1357, PERM32_2301);
 
-        let a4602 = _mm256_permute2f128_ps(a0246, a0246, 0x03);
-        let a6420 = _mm256_permute2f128_ps(a2064, a2064, 0x03);
+        let a4602 = _mm256_permute2f128_ps(a0246, a0246, PERM128_30);
+        let a6420 = _mm256_permute2f128_ps(a2064, a2064, PERM128_30);
 
-        let a5713 = _mm256_permute2f128_ps(a1357, a1357, 0x03);
-        let a7531 = _mm256_permute2f128_ps(a3175, a3175, 0x03);
+        let a5713 = _mm256_permute2f128_ps(a1357, a1357, PERM128_30);
+        let a7531 = _mm256_permute2f128_ps(a3175, a3175, PERM128_30);
 
         ab[0] = _mm256_add_ps(ab[0], _mm256_mul_ps(a0246, bv));
         ab[1] = _mm256_add_ps(ab[1], _mm256_mul_ps(a2064, bv));
@@ -329,6 +348,7 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     // vperm2 0x12: 00004444 and 44440000 -> 44444444 
     //
     
+    // shuffle and permute to bring the result in the right order post main loop
     let ab0246 = ab[0];
     let ab2064 = ab[1];
     let ab4602 = ab[2];
@@ -339,11 +359,11 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     let ab5713 = ab[6];
     let ab7531 = ab[7];
 
-    const SHUF_0123: i32 = 0b11100100;
+    const SHUF_0123: i32 = shuffle_mask!(3, 2, 1, 0);
     debug_assert_eq!(SHUF_0123, 0xE4);
 
-    const PERM2_03: i32 = 0b110000;
-    const PERM2_21: i32 = 0b010010;
+    const PERM128_03: i32 = permute2f128_mask!(3, 0); //0b110000;
+    const PERM128_21: i32 = permute2f128_mask!(1, 2); //0b010010;
 
     let ab0044 = _mm256_shuffle_ps(ab0246, ab2064, SHUF_0123);
     let ab2266 = _mm256_shuffle_ps(ab2064, ab0246, SHUF_0123);
@@ -357,17 +377,17 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     let ab5511 = _mm256_shuffle_ps(ab5713, ab7531, SHUF_0123);
     let ab7733 = _mm256_shuffle_ps(ab7531, ab5713, SHUF_0123);
 
-    let ab0000 = _mm256_permute2f128_ps(ab0044, ab4400, PERM2_03);
-    let ab4444 = _mm256_permute2f128_ps(ab0044, ab4400, PERM2_21);
+    let ab0000 = _mm256_permute2f128_ps(ab0044, ab4400, PERM128_03);
+    let ab4444 = _mm256_permute2f128_ps(ab0044, ab4400, PERM128_21);
 
-    let ab2222 = _mm256_permute2f128_ps(ab2266, ab6622, PERM2_03);
-    let ab6666 = _mm256_permute2f128_ps(ab2266, ab6622, PERM2_21);
+    let ab2222 = _mm256_permute2f128_ps(ab2266, ab6622, PERM128_03);
+    let ab6666 = _mm256_permute2f128_ps(ab2266, ab6622, PERM128_21);
 
-    let ab1111 = _mm256_permute2f128_ps(ab1155, ab5511, PERM2_03);
-    let ab5555 = _mm256_permute2f128_ps(ab1155, ab5511, PERM2_21);
+    let ab1111 = _mm256_permute2f128_ps(ab1155, ab5511, PERM128_03);
+    let ab5555 = _mm256_permute2f128_ps(ab1155, ab5511, PERM128_21);
 
-    let ab3333 = _mm256_permute2f128_ps(ab3377, ab7733, PERM2_03);
-    let ab7777 = _mm256_permute2f128_ps(ab3377, ab7733, PERM2_21);
+    let ab3333 = _mm256_permute2f128_ps(ab3377, ab7733, PERM128_03);
+    let ab7777 = _mm256_permute2f128_ps(ab3377, ab7733, PERM128_21);
 
     ab[0] = ab0000;
     ab[1] = ab1111;

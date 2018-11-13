@@ -199,12 +199,12 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 
     macro_rules! shuffle_mask {
         ($z:expr, $y:expr, $x:expr, $w:expr) => {
-            (($z << 6) | ($y << 4) | ($x << 2) | $w)
+            ($z << 6) | ($y << 4) | ($x << 2) | $w
         }
     }
     macro_rules! permute_mask {
         ($z:expr, $y:expr, $x:expr, $w:expr) => {
-            (($z << 6) | ($y << 4) | ($x << 2) | $w)
+            ($z << 6) | ($y << 4) | ($x << 2) | $w
         }
     }
 

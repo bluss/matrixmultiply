@@ -95,8 +95,8 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     {
         if is_x86_feature_detected_!("avx") {
             return kernel_target_avx(k, alpha, a, b, beta, c, rsc, csc);
-        } else if is_x86_feature_detected_!("sse") {
-            return kernel_target_sse(k, alpha, a, b, beta, c, rsc, csc);
+        } else if is_x86_feature_detected_!("sse2") {
+            return kernel_target_sse2(k, alpha, a, b, beta, c, rsc, csc);
         }
     }
     kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc);

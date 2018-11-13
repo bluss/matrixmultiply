@@ -77,8 +77,8 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
     {
         if is_x86_feature_detected!("avx") {
             return kernel_target_avx(k, alpha, a, b, beta, c, rsc, csc);
-        } else if is_x86_feature_detected!("sse") {
-            return kernel_target_sse(k, alpha, a, b, beta, c, rsc, csc);
+        } else if is_x86_feature_detected!("sse2") {
+            return kernel_target_sse2(k, alpha, a, b, beta, c, rsc, csc);
         }
     }
     kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc);
@@ -94,10 +94,10 @@ pub unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
 }
 
 #[inline]
-#[target_feature(enable="sse")]
+#[target_feature(enable="sse2")]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-pub unsafe fn kernel_target_sse(k: usize, alpha: T, a: *const T, b: *const T,
-                          beta: T, c: *mut T, rsc: isize, csc: isize)
+pub unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
+                                 beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc)
 }

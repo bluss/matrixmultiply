@@ -89,8 +89,8 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
 #[inline]
 #[target_feature(enable="avx")]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-pub unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
-                         beta: T, c: *mut T, rsc: isize, csc: isize)
+unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
+                            beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     kernel_x86_avx(k, alpha, a, b, beta, c, rsc, csc)
 }
@@ -98,8 +98,8 @@ pub unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
 #[inline]
 #[target_feature(enable="sse")]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-pub unsafe fn kernel_target_sse(k: usize, alpha: T, a: *const T, b: *const T,
-                          beta: T, c: *mut T, rsc: isize, csc: isize)
+unsafe fn kernel_target_sse(k: usize, alpha: T, a: *const T, b: *const T,
+                             beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     kernel_x86_sse(k, alpha, a, b, beta, c, rsc, csc)
 }
@@ -121,8 +121,8 @@ macro_rules! mm_transpose4 {
 
 #[inline(always)]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-pub unsafe fn kernel_x86_sse(k: usize, alpha: T, a: *const T, b: *const T,
-                             beta: T, c: *mut T, rsc: isize, csc: isize)
+unsafe fn kernel_x86_sse(k: usize, alpha: T, a: *const T, b: *const T,
+                         beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     let mut ab = [_mm_setzero_ps(); MR];
 
@@ -189,8 +189,8 @@ pub unsafe fn kernel_x86_sse(k: usize, alpha: T, a: *const T, b: *const T,
 
 #[inline(always)]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
-                             beta: T, c: *mut T, rsc: isize, csc: isize)
+unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
+                         beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     let mut ab = [_mm256_setzero_ps(); MR];
 
@@ -451,8 +451,8 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 }
 
 #[inline]
-pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
-                                   beta: T, c: *mut T, rsc: isize, csc: isize)
+unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
+                               beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     let mut ab: [[T; NR]; MR] = [[0.; NR]; MR];
     let mut a = a;

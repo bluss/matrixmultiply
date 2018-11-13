@@ -29,7 +29,7 @@ impl GemmKernel for Gemm {
     type Elem = T;
 
     #[inline(always)]
-    fn align_to() -> usize { 16 }
+    fn align_to() -> usize { 32 }
 
     #[inline(always)]
     fn mr() -> usize { MR }
@@ -137,8 +137,8 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // Start data load before each iteration
-    let mut av = _mm256_loadu_ps(a);
-    let mut bv = _mm256_loadu_ps(b);
+    let mut av = _mm256_load_ps(a);
+    let mut bv = _mm256_load_ps(b);
 
     // Compute A B
     unroll_by_with_last!(4 => k, is_last, {
@@ -218,8 +218,8 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
             a = a.add(MR);
             b = b.add(NR);
 
-            bv = _mm256_loadu_ps(b);
-            av = _mm256_loadu_ps(a);
+            bv = _mm256_load_ps(b);
+            av = _mm256_load_ps(a);
         }
     });
 

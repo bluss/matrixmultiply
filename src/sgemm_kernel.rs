@@ -448,6 +448,7 @@ pub unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     }
 }
 
+#[inline]
 pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
                                    beta: T, c: *mut T, rsc: isize, csc: isize)
 {

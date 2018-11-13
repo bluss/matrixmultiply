@@ -6,10 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::alloc::{Layout, System, GlobalAlloc, handle_alloc_error};
-
 use std::cmp::{min, max};
 use std::mem::{align_of, size_of};
+
+use aligned_alloc::Alloc;
 
 use util::range_chunk;
 use util::round_up_to;
@@ -138,8 +138,9 @@ unsafe fn gemm_loop<K>(
     let kmc = K::mc();
     ensure_kernel_params::<K>();
 
-    let (app, bp_offset) = packing_vec::<K>(m, k, n);
-    let bpp = app.offset(bp_offset);
+    let (mut packing_buffer, bp_offset) = make_packing_buffer::<K>(m, k, n);
+    let app = packing_buffer.ptr_mut();
+    let bpp = app.add(bp_offset);
 
     // LOOP 5: split n into nc parts
     for (l5, nc) in range_chunk(n, knc) {
@@ -178,7 +179,6 @@ unsafe fn gemm_loop<K>(
             }
         }
     }
-    System.dealloc(app as _, packing_area_layout::<K>(m, k, n).0);
 }
 
 /// Loops 1 and 2 around the µ-kernel
@@ -234,23 +234,12 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 /// but we can make them smaller if the matrix is smaller than this (just ensure
 /// we have rounded up to a multiple of the kernel size).
 ///
-/// Return packing vector and offset to start of b
-unsafe fn packing_vec<K>(m: usize, k: usize, n: usize) -> (*mut K::Elem, isize)
+/// Return packing buffer and offset to start of b
+unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize) -> (Alloc<K::Elem>, usize)
     where K: GemmKernel,
 {
-    let (layout, apack_size) = packing_area_layout::<K>(m, k, n);
-    let ptr = System.alloc(layout);
-    if ptr.is_null() {
-        handle_alloc_error(layout);
-    }
     // max alignment requirement is a multiple of min(MR, NR) * sizeof<Elem>
     // because apack_size is a multiple of MR, start of b aligns fine
-    (ptr as *mut _, apack_size)
-}
-
-fn packing_area_layout<K>(m: usize, k: usize, n: usize) -> (Layout, isize)
-    where K: GemmKernel
-{
     let m = min(m, K::mc());
     let k = min(k, K::kc());
     let n = min(n, K::nc());
@@ -264,16 +253,11 @@ fn packing_area_layout<K>(m: usize, k: usize, n: usize) -> (Layout, isize)
              m={} k={} n={}",
              nelem, apack_size, bpack_size,
              m,k,n);
-    // Size of the packing area is due to configuration of this crate,
-    // not depending on user input, so we can use unchecked
-    #[cfg(debug_assertions)]
-    return (Layout::from_size_align(size_of::<K::Elem>() * nelem,
-        max(align_of::<K::Elem>(), K::align_to())).unwrap(), apack_size as isize);
-    #[cfg(not(debug_assertions))]
-    unsafe {
-        return (Layout::from_size_align_unchecked(size_of::<K::Elem>() * nelem,
-            max(align_of::<K::Elem>(), K::align_to())), apack_size as isize);
-    }
+
+    let whole_size = size_of::<K::Elem>() * nelem;
+    let alignment = max(align_of::<K::Elem>(), K::align_to());
+
+    (Alloc::new(whole_size, alignment), apack_size)
 }
 
 /// offset the ptr forwards to align to a specific byte count

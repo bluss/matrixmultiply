@@ -1,0 +1,31 @@
+[package]
+name = "blas-bench"
+version = "0.1.0"
+authors = ["bluss"]
+publish = false
+
+license = "MIT/Apache-2.0"
+
+repository = "https://github.com/bluss/matrixmultiply/"
+documentation = ""
+
+description = "Blas benchmarks for comparison with matrixmultiply"
+
+keywords = ["matrix", "sgemm", "dgemm"]
+
+[lib]
+bench = false
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
+[dependencies]
+rawpointer = "0.1"
+matrixmultiply = { path = ".." }
+blas = { version = "0.20", default-features = false }
+blas-src = { version = "0.2.0", default-features = false }
+
+
+[dev-dependencies]
+bencher = "0.1.2"

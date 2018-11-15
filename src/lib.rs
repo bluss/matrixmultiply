@@ -1,4 +1,4 @@
-// Copyright 2016 bluss
+// Copyright 2016 - 2018 Ulrik Sverdrup "bluss"
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -52,6 +52,7 @@
 
 extern crate rawpointer;
 
+#[macro_use] mod archmacros_x86;
 #[macro_use] mod debugmacros;
 #[macro_use] mod loopmacros;
 mod archparam;
@@ -60,6 +61,7 @@ mod gemm;
 mod sgemm_kernel;
 mod dgemm_kernel;
 mod util;
+mod aligned_alloc;
 
 pub use gemm::sgemm;
 pub use gemm::dgemm;

@@ -1,4 +1,4 @@
-// Copyright 2016 bluss
+// Copyright 2016 - 2018 Ulrik Sverdrup "bluss"
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -8,6 +8,8 @@
 
 use std::cmp::min;
 use std::mem::size_of;
+
+use aligned_alloc::Alloc;
 
 use util::range_chunk;
 use util::round_up_to;
@@ -136,9 +138,9 @@ unsafe fn gemm_loop<K>(
     let kmc = K::mc();
     ensure_kernel_params::<K>();
 
-    let (mut packv, bp_offset) = packing_vec::<K>(m, k, n);
-    let app = make_aligned_vec_ptr(K::align_to(), &mut packv);
-    let bpp = app.offset(bp_offset);
+    let (mut packing_buffer, bp_offset) = make_packing_buffer::<K>(m, k, n);
+    let app = packing_buffer.ptr_mut();
+    let bpp = app.add(bp_offset);
 
     // LOOP 5: split n into nc parts
     for (l5, nc) in range_chunk(n, knc) {
@@ -151,7 +153,6 @@ unsafe fn gemm_loop<K>(
             dprint!("LOOP 4, {}, kc={}", l4, kc);
             let b = b.stride_offset(rsb, kkc * l4);
             let a = a.stride_offset(csa, kkc * l4);
-            debug!(for elt in &mut packv { *elt = <_>::one(); });
 
             // Pack B -> B~
             pack(kc, nc, K::nr(), bpp, b, csb, rsb);
@@ -232,10 +233,12 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 /// but we can make them smaller if the matrix is smaller than this (just ensure
 /// we have rounded up to a multiple of the kernel size).
 ///
-/// Return packing vector and offset to start of b
-unsafe fn packing_vec<K>(m: usize, k: usize, n: usize) -> (Vec<K::Elem>, isize)
+/// Return packing buffer and offset to start of b
+unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize) -> (Alloc<K::Elem>, usize)
     where K: GemmKernel,
 {
+    // max alignment requirement is a multiple of min(MR, NR) * sizeof<Elem>
+    // because apack_size is a multiple of MR, start of b aligns fine
     let m = min(m, K::mc());
     let k = min(k, K::kc());
     let n = min(n, K::nc());
@@ -244,29 +247,13 @@ unsafe fn packing_vec<K>(m: usize, k: usize, n: usize) -> (Vec<K::Elem>, isize)
     let apack_size = k * round_up_to(m, K::mr());
     let bpack_size = k * round_up_to(n, K::nr());
     let nelem = apack_size + bpack_size;
-    let mut v = Vec::with_capacity(nelem);
-    v.set_len(nelem);
+
     dprint!("packed nelem={}, apack={}, bpack={},
              m={} k={} n={}",
              nelem, apack_size, bpack_size,
              m,k,n);
-    // max alignment requirement is a multiple of min(MR, NR) * sizeof<Elem>
-    // because apack_size is a multiple of MR, start of b aligns fine
-    (v, apack_size as isize)
-}
 
-/// Align a pointer into the vec. Will reallocate to fit & shift the pointer
-/// forwards if needed. This invalidates any previous pointers into the v.
-unsafe fn make_aligned_vec_ptr<U>(align_to: usize, v: &mut Vec<U>) -> *mut U {
-    let mut ptr = v.as_mut_ptr();
-    if align_to != 0 {
-        if v.as_ptr() as usize % align_to != 0 {
-            let cap = v.capacity();
-            v.reserve_exact(cap + align_to / size_of::<U>() - 1);
-            ptr = align_ptr(align_to, v.as_mut_ptr());
-        }
-    }
-    ptr
+    (Alloc::new(nelem, K::align_to()), apack_size)
 }
 
 /// offset the ptr forwards to align to a specific byte count

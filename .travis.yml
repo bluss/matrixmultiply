@@ -1,21 +1,49 @@
 language: rust
 sudo: false
 
-# run builds for all the trains (and more)
-rust:
-  - 1.12.0
-  - stable
-  - beta
-  - nightly
+matrix:
+  include:
+    - rust: 1.28.0
+      env:
+        TARGET=x86_64-unknown-linux-gnu
+    - rust: stable
+      env:
+        TARGET=x86_64-unknown-linux-gnu
+    - rust: stable
+      env:
+        TARGET=i686-unknown-linux-gnu
+    - rust: beta
+      env:
+        TARGET=x86_64-unknown-linux-gnu
+    - rust: nightly
+      env:
+        TARGET=x86_64-unknown-linux-gnu
+    - rust: nightly
+      env:
+        TARGET=aarch64-unknown-linux-gnu
+        BUILD_ONLY=1
+env:
+  global:
+    - HOST=x86_64-unknown-linux-gnu
+
+addons:
+  apt:
+    packages:
+      # needed for i686-unknown-linux-gnu target
+      - gcc-multilib
+install:
+  # "rustup error: cannot re-add" without this conditional check
+- if [[ $HOST != $TARGET ]]; then rustup target add $TARGET; fi
 
 # the main build
 script:
   - |
-      cargo build &&
-      cargo test &&
-      cargo test --release &&
-      cargo doc &&
-      cargo bench
+      cargo build --target=$TARGET &&
+      ([ -n "$BUILD_ONLY" ] || (
+      cargo test --target=$TARGET &&
+      cargo test --release --target=$TARGET &&
+      cargo doc --target=$TARGET &&
+      cargo bench --target=$TARGET ))
 
 branches:
   only:

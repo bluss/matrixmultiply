@@ -6,7 +6,7 @@ use std::fmt::{Display, Debug};
 trait Float : Copy + Display + Debug + PartialEq {
     fn zero() -> Self;
     fn one() -> Self;
-    fn from(i64) -> Self;
+    fn from(x: i64) -> Self;
     fn nan() -> Self;
 }
 

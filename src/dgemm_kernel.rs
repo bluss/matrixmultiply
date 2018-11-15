@@ -1,4 +1,4 @@
-// Copyright 2016 bluss
+// Copyright 2016 - 2018 Ulrik Sverdrup "bluss"
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -72,12 +72,44 @@ impl GemmKernel for Gemm {
 pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
                      beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    // using `uninitialized` is a workaround for issue https://github.com/bluss/matrixmultiply/issues/9
-    let mut ab: [[T; NR]; MR] = ::std::mem::uninitialized();
+    // dispatch to specific compiled versions
+    #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+    {
+        if is_x86_feature_detected_!("avx") {
+            return kernel_target_avx(k, alpha, a, b, beta, c, rsc, csc);
+        } else if is_x86_feature_detected_!("sse2") {
+            return kernel_target_sse2(k, alpha, a, b, beta, c, rsc, csc);
+        }
+    }
+    kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc);
+}
+
+#[inline]
+#[target_feature(enable="avx")]
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+pub unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
+                         beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc)
+}
+
+#[inline]
+#[target_feature(enable="sse2")]
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+pub unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
+                                 beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc)
+}
+
+#[inline(always)]
+pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
+                                   beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    let mut ab: [[T; NR]; MR] = [[0.; NR]; MR];
     let mut a = a;
     let mut b = b;
     debug_assert_eq!(beta, 0.); // always masked
-    loop_m!(i, loop_n!(j, ab[i][j] = 0.));
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by!(4 => k, {
@@ -100,22 +132,82 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
     *ptr.offset(i as isize)
 }
 
-#[test]
-fn test_gemm_kernel() {
-    let mut a = [1.; 32];
-    let mut b = [0.; 16];
-    for (i, x) in a.iter_mut().enumerate() {
-        *x = i as f64;
-    }
-    for i in 0..4 {
-        b[i + i * 4] = 1.;
-    }
-    let mut c = [0.; 32];
-    unsafe {
-        kernel(4, 1., &a[0], &b[0],
-               0., &mut c[0], 1, 8);
-        // transposed C so that results line up
-    }
-    assert_eq!(&a, &c);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use aligned_alloc::Alloc;
 
+    fn aligned_alloc<T>(elt: T, n: usize) -> Alloc<T> where T: Copy
+    {
+        unsafe {
+            Alloc::new(n, Gemm::align_to()).init_with(elt)
+        }
+    }
+
+    use super::T;
+    type KernelFn = unsafe fn(usize, T, *const T, *const T, T, *mut T, isize, isize);
+
+    fn test_a_kernel(_name: &str, kernel_fn: KernelFn) {
+        const K: usize = 4;
+        let mut a = aligned_alloc(1., MR * K);
+        let mut b = aligned_alloc(0., NR * K);
+        for (i, x) in a.iter_mut().enumerate() {
+            *x = i as _;
+        }
+
+        for i in 0..K {
+            b[i + i * NR] = 1.;
+        }
+        let mut c = [0.; MR * NR];
+        unsafe {
+            kernel_fn(K, 1., &a[0], &b[0], 0., &mut c[0], 1, MR as isize);
+            // col major C
+        }
+        assert_eq!(&a[..], &c[..a.len()]);
+    }
+
+    #[test]
+    fn test_native_kernel() {
+        test_a_kernel("kernel", kernel);
+    }
+
+    #[test]
+    fn test_kernel_fallback_impl() {
+        test_a_kernel("kernel", kernel_fallback_impl);
+    }
+
+    #[test]
+    fn test_loop_m_n() {
+        let mut m = [[0; NR]; MR];
+        loop_m!(i, loop_n!(j, m[i][j] += 1));
+        for arr in &m[..] {
+            for elt in &arr[..] {
+                assert_eq!(*elt, 1);
+            }
+        }
+    }
+
+    mod test_arch_kernels {
+        use super::test_a_kernel;
+        macro_rules! test_arch_kernels_x86 {
+            ($($feature_name:tt, $function_name:ident),*) => {
+                $(
+                #[test]
+                fn $function_name() {
+                    if is_x86_feature_detected_!($feature_name) {
+                        test_a_kernel(stringify!($function_name), super::super::$function_name);
+                    } else {
+                        println!("Skipping, host does not have feature: {:?}", $feature_name);
+                    }
+                }
+                )*
+            }
+        }
+
+        #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+        test_arch_kernels_x86! {
+            "avx", kernel_target_avx,
+            "sse2", kernel_target_sse2
+        }
+    }
+}

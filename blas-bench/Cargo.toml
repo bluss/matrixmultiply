@@ -23,8 +23,7 @@ harness = false
 [dependencies]
 rawpointer = "0.1"
 matrixmultiply = { path = ".." }
-# Use via the `blas` crate feature!
-cblas-sys = { version = "0.1.4", default-features = false }
+blas = { version = "0.20", default-features = false }
 blas-src = { version = "0.2.0", default-features = false }
 
 

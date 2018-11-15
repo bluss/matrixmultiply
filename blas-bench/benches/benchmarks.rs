@@ -5,12 +5,10 @@ pub use matrixmultiply::dgemm;
 
 #[macro_use]
 extern crate bencher;
-extern crate cblas_sys;
+extern crate blas;
 
 use std::os::raw::c_int;
 
-use cblas_sys as blas_sys;
-use cblas_sys::{CblasNoTrans, CblasRowMajor};
 
 #[allow(non_camel_case_types)]
 type blas_index = c_int; // blas index type
@@ -26,9 +24,6 @@ macro_rules! blas_mat_mul {
     ($modname:ident, $gemm:ident, $(($name:ident, $m:expr, $n:expr, $k:expr))+) => {
         mod $modname {
             use bencher::{Bencher};
-            use blas_sys;
-            use super::CblasRowMajor;
-            use super::CblasNoTrans;
             use super::blas_index;
             $(
             pub fn $name(bench: &mut Bencher)
@@ -39,20 +34,19 @@ macro_rules! blas_mat_mul {
                 bench.iter(|| {
                     unsafe {
 
-                            blas_sys::$gemm(
-                            CblasRowMajor,
-                            CblasNoTrans,
-                            CblasNoTrans,
+                            blas::$gemm(
+                            b'N',
+                            b'N',
                             $m as blas_index, // m, rows of Op(a)
                             $n as blas_index, // n, cols of Op(b)
                             $k as blas_index, // k, cols of Op(a)
                             1.,
-                            a.as_ptr() as *const _,   // a
+                            &a,
                             $n, // lda
-                            b.as_ptr() as *const _,   // b
+                            &b,
                             $k, // ldb
                             0.,         // beta
-                            c.as_mut_ptr() as *mut _,       // c
+                            &mut c,
                             $k, // ldc
                             );
                     }
@@ -64,7 +58,7 @@ macro_rules! blas_mat_mul {
     };
 }
 
-blas_mat_mul!{blas_mat_mul_f32, cblas_sgemm,
+blas_mat_mul!{blas_mat_mul_f32, sgemm,
     (m004, 4, 4, 4)
     (m006, 6, 6, 6)
     (m008, 8, 8, 8)
@@ -75,7 +69,7 @@ blas_mat_mul!{blas_mat_mul_f32, cblas_sgemm,
    (m127, 127, 127, 127)
 }
 
-blas_mat_mul!{blas_mat_mul_f64, cblas_dgemm,
+blas_mat_mul!{blas_mat_mul_f64, dgemm,
     (m004, 4, 4, 4)
     (m006, 6, 6, 6)
     (m008, 8, 8, 8)

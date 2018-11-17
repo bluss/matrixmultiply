@@ -36,20 +36,19 @@ Recent Changes
 
 - 0.2.0 (Not released yet)
 
-  - Use runtime feature detection on x86 and x86-64 platforms, to enable avx-
-    specific microkernels at runtime if available on the currently executing
-    configuration.
+  - Use runtime feature detection on x86 and x86-64 platforms, to enable
+    AVX-specific microkernels at runtime if available on the currently
+    executing configuration.
 
-    This means no special compiler flags are needed to enable good native
-    instruction performance, thanks to the awesome new features related to this
-    in Rust.
+    This means no special compiler flags are needed to enable native
+    instruction performance!
 
-  - Implement a specialized 8×8 sgemm (f32) avx microkernel, which sped up
-    f32 matrix multiplication by another 25%.
+  - Implement a specialized 8×8 sgemm (f32) AVX microkernel, this speeds up
+    matrix multiplication by another 25%.
 
   - Use ``std::alloc`` for allocation of aligned packing buffers
 
-  - We now require Rust 1.28. as the minimal version
+  - We now require Rust 1.28 as the minimal version
 
 - 0.1.15
 

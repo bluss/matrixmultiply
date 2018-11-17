@@ -6,19 +6,16 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 //! 
-//! General matrix multiplication for f32, f64 matrices.
+//! General matrix multiplication for f32, f64 matrices. Operates on matrices
+//! with general layout (they can use arbitrary row and column stride).
 //! 
-//! Allows arbitrary row, column strided matrices.
+//! This crate uses the same macro/microkernel approach to matrix multiplication as
+//! the [BLIS][bl] project.
 //! 
-//! Uses the same microkernel algorithm as [BLIS][bl], but in a much simpler
-//! and less featureful implementation.
-//! See their [multithreading][mt] page for a very good diagram over how
-//! the algorithm partitions the matrix (*Note:* this crate does not implement
-//! multithreading).
+//! We presently provide a few good microkernels, portable and for x86-64, and
+//! only one operation: the general matrix-matrix multiplication (“gemm”).
 //! 
 //! [bl]: https://github.com/flame/blis
-//! 
-//! [mt]: https://github.com/flame/blis/wiki/Multithreading
 //!
 //! ## Matrix Representation
 //!

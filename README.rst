@@ -1,23 +1,21 @@
 matrixmultiply
 ==============
 
-General matrix multiplication for f32, f64 matrices.
-
-Allows arbitrary row, column strided matrices.
-
-Uses the same microkernel algorithm as BLIS_, but in a much simpler
-and less featureful implementation.
-See their multithreading_ page for a very good diagram over how
-the algorithm partitions the matrix (*Note:* this crate does not implement
-multithreading).
-
-.. _BLIS: https://github.com/flame/blis
-
-.. _multithreading: https://github.com/flame/blis/wiki/Multithreading
+General matrix multiplication for f32, f64 matrices. Operates on matrices with
+general layout (they can use arbitrary row and column stride).
 
 Please read the `API documentation here`__
 
 __ https://docs.rs/matrixmultiply/
+
+
+This crate uses the same macro/microkernel approach to matrix multiplication as
+the BLIS_ project.
+
+We presently provide a few good microkernels portable and for x86-64, and
+only one operation: the general matrix-matrix multiplication (“gemm”).
+
+.. _BLIS: https://github.com/flame/blis
 
 Blog posts about this crate:
 
@@ -33,11 +31,25 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 .. |crates| image:: https://meritbadge.herokuapp.com/matrixmultiply
 .. _crates: https://crates.io/crates/matrixmultiply
 
-**NOTE: Compile this crate using** ``RUSTFLAGS="-C target-cpu=native"`` **so
-that the compiler can produce the best output.**
-
 Recent Changes
 --------------
+
+- 0.2.0 (Not released yet)
+
+  - Use runtime feature detection on x86 and x86-64 platforms, to enable avx-
+    specific microkernels at runtime if available on the currently executing
+    configuration.
+
+    This means no special compiler flags are needed to enable good native
+    instruction performance, thanks to the awesome new features related to this
+    in Rust.
+
+  - Implement a specialized 8×8 sgemm (f32) avx microkernel, which sped up
+    f32 matrix multiplication by another 25%.
+
+  - Use ``std::alloc`` for allocation of aligned packing buffers
+
+  - We now require Rust 1.28. as the minimal version
 
 - 0.1.15
 

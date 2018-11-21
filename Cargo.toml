@@ -11,6 +11,7 @@ documentation = "https://docs.rs/matrixmultiply/0.1/"
 description = "General matrix multiplication for f32 and f64 matrices. Operates on matrices with general layout (they can use arbitrary row and column stride). Detects and uses AVX or SSE2 on x86 platforms transparently for higher performance. Uses a microkernel strategy, so that the implementation is easy to parallelize and optimize."
 
 keywords = ["matrix", "sgemm", "dgemm"]
+categories = ["science"]
 
 [lib]
 bench = false

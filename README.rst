@@ -34,7 +34,7 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
-- 0.2.0 (Not released yet)
+- 0.2.0
 
   - Use runtime feature detection on x86 and x86-64 platforms, to enable
     AVX-specific microkernels at runtime if available on the currently

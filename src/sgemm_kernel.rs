@@ -438,6 +438,7 @@ mod tests {
         }
     }
 
+    #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     mod test_arch_kernels {
         use super::test_a_kernel;
         macro_rules! test_arch_kernels_x86 {
@@ -455,7 +456,6 @@ mod tests {
             }
         }
 
-        #[cfg(any(target_arch="x86", target_arch="x86_64"))]
         test_arch_kernels_x86! {
             "avx", kernel_target_avx,
             "sse2", kernel_target_sse2

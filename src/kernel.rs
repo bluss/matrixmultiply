@@ -79,3 +79,15 @@ impl Element for f64 {
         *self += alpha * a;
     }
 }
+
+impl Element for i32 {
+    fn zero() -> Self { 0 }
+    fn one() -> Self { 1 }
+    fn is_zero(&self) -> bool { *self == 0 }
+    fn scale_by(&mut self, x: Self) {
+        *self = self.wrapping_mul(x);
+    }
+    fn scaled_add(&mut self, alpha: Self, a: Self) {
+        *self = self.wrapping_add(alpha.wrapping_mul(a));
+    }
+}

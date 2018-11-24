@@ -118,19 +118,10 @@ unsafe fn gemm_loop<K>(
 {
     debug_assert!(m <= 1 || n == 0 || rsc != 0);
     debug_assert!(m == 0 || n <= 1 || csc != 0);
+
     // if A or B have no elements, compute C ← βC and return
     if m == 0 || k == 0 || n == 0 {
-        for i in 0..m {
-            for j in 0..n {
-                let cptr = c.offset(rsc * i as isize + csc * j as isize);
-                if beta.is_zero() {
-                    *cptr = K::Elem::zero(); // initialize C
-                } else {
-                    (*cptr).scale_by(beta);
-                }
-            }
-        }
-        return;
+        return c_to_beta_c(m, n, beta, c, rsc, csc);
     }
 
     let knc = K::nc();
@@ -347,6 +338,23 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
                 (*cptr).scaled_add(alpha, *ab);
             }
             ab.inc();
+        }
+    }
+}
+
+// Compute just C ← βC
+unsafe fn c_to_beta_c<T>(m: usize, n: usize, beta: T,
+                         c: *mut T, rsc: isize, csc: isize)
+    where T: Element
+{
+    for i in 0..m {
+        for j in 0..n {
+            let cptr = c.offset(rsc * i as isize + csc * j as isize);
+            if beta.is_zero() {
+                *cptr = T::zero(); // initialize C
+            } else {
+                (*cptr).scale_by(beta);
+            }
         }
     }
 }

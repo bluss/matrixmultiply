@@ -45,7 +45,7 @@
 //! Stides can be negative or even zero, but for a mutable matrix elements
 //! may not alias each other.
 
-#![doc(html_root_url = "https://docs.rs/matrixmultiply/0.1/")]
+#![doc(html_root_url = "https://docs.rs/matrixmultiply/0.2/")]
 
 extern crate rawpointer;
 

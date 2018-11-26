@@ -114,10 +114,10 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     let mut ab = [_mm256_setzero_ps(); MR];
 
     // this kernel can operate in either transposition (C = A B or C^T = B^T A^T)
-    const PREFER_ROW_MAJOR_C: bool = true;
+    let prefer_row_major_c = rsc != 1;
 
-    let (mut a, mut b) = if PREFER_ROW_MAJOR_C { (a, b) } else { (b, a) };
-    let (rsc, csc) = if PREFER_ROW_MAJOR_C { (rsc, csc) } else { (csc, rsc) };
+    let (mut a, mut b) = if prefer_row_major_c { (a, b) } else { (b, a) };
+    let (rsc, csc) = if prefer_row_major_c { (rsc, csc) } else { (csc, rsc) };
 
     macro_rules! shuffle_mask {
         ($z:expr, $y:expr, $x:expr, $w:expr) => {

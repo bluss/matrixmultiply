@@ -10,6 +10,8 @@ extern crate bencher;
 // by flop / s = 2 M N K / time
 
 
+benchmark_main!(mat_mul_f32, mat_mul_f64, layout_f32_032);
+
 macro_rules! mat_mul {
     ($modname:ident, $gemm:ident, $(($name:ident, $m:expr, $n:expr, $k:expr))+) => {
         mod $modname {
@@ -39,8 +41,6 @@ macro_rules! mat_mul {
         benchmark_group!{ $modname, $($modname::$name),+ }
     };
 }
-
-benchmark_main!(mat_mul_f32, mat_mul_f64);
 
 mat_mul!{mat_mul_f32, sgemm,
     (m004, 4, 4, 4)
@@ -79,6 +79,80 @@ mat_mul!{mat_mul_f64, dgemm,
     (mix128x10000x128, 128, 10000, 128)
     */
 }
+
+
+// benchmarks combinations of inputs using various layouts
+// row-major ("c") vs column-major ("f") experiments
+
+enum Layout { C, F }
+use self::Layout::*;
+
+impl Layout {
+    fn strides(&self, rs: isize, cs: isize) -> (isize, isize) {
+        match *self {
+            C => (rs, cs),
+            F => (cs, rs),
+        }
+    }
+}
+
+macro_rules! gemm_layout {
+    ($modname:ident, $gemm:ident, $(($name:ident, $m:expr))+) => {
+        mod $modname {
+            use bencher::{Bencher};
+            use super::Layout::{self, *};
+            use $gemm;
+            $(
+
+            fn base(bench: &mut Bencher, al: Layout, bl: Layout, cl: Layout)
+            {
+                let a = vec![0.; $m * $m]; 
+                let b = vec![0.; $m * $m];
+                let mut c = vec![0.; $m * $m];
+                let (rsa, csa) = al.strides($m, 1);
+                let (rsb, csb) = bl.strides($m, 1);
+                let (rsc, csc) = cl.strides($m, 1);
+                bench.iter(|| {
+                    unsafe {
+                        $gemm(
+                            $m, $m, $m,
+                            1.,
+                            a.as_ptr(), rsa, csa,
+                            b.as_ptr(), rsb, csb,
+                            0.,
+                            c.as_mut_ptr(), rsc, csc,
+                            )
+                    }
+                });
+            }
+
+            pub fn ccc(bench: &mut Bencher) { base(bench, C, C, C); }
+            pub fn ccf(bench: &mut Bencher) { base(bench, C, C, F); }
+            pub fn fcc(bench: &mut Bencher) { base(bench, F, C, C); }
+            pub fn cfc(bench: &mut Bencher) { base(bench, C, F, C); }
+            pub fn ffc(bench: &mut Bencher) { base(bench, F, F, C); }
+            pub fn cff(bench: &mut Bencher) { base(bench, C, F, F); }
+            pub fn fcf(bench: &mut Bencher) { base(bench, F, C, F); }
+            pub fn fff(bench: &mut Bencher) { base(bench, F, F, F); }
+            )+
+        }
+        benchmark_group!{ $modname,
+            $modname::ccc,
+            $modname::ccf,
+            $modname::fcc,
+            $modname::cfc,
+            $modname::ffc,
+            $modname::cff,
+            $modname::fcf,
+            $modname::fff
+        }
+    };
+}
+
+gemm_layout!{layout_f32_032, sgemm,
+    (m032, 32)
+}
+
 
 use std::ops::{Add, Mul};
 

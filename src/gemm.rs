@@ -348,7 +348,8 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
     for j in 0..nr {
         for i in 0..mr {
             if i < rows && j < cols {
-                let cptr = c.offset(rsc * i as isize + csc * j as isize);
+                let cptr = c.stride_offset(rsc, i)
+                            .stride_offset(csc, j);
                 if beta.is_zero() {
                     *cptr = T::zero(); // initialize C
                 } else {
@@ -368,7 +369,8 @@ unsafe fn c_to_beta_c<T>(m: usize, n: usize, beta: T,
 {
     for i in 0..m {
         for j in 0..n {
-            let cptr = c.offset(rsc * i as isize + csc * j as isize);
+            let cptr = c.stride_offset(rsc, i)
+                        .stride_offset(csc, j);
             if beta.is_zero() {
                 *cptr = T::zero(); // initialize C
             } else {

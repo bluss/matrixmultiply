@@ -8,6 +8,7 @@
 
 use std::cmp::min;
 use std::mem::size_of;
+use std::ptr::copy_nonoverlapping;
 
 use aligned_alloc::Alloc;
 
@@ -271,14 +272,31 @@ unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
                   a: *const T, rsa: isize, csa: isize)
     where T: Element
 {
-    let mut pack = pack;
-    for ir in 0..mc/mr {
-        let row_offset = ir * mr;
-        for j in 0..kc {
-            for i in 0..mr {
-                *pack = *a.stride_offset(rsa, i + row_offset)
-                          .stride_offset(csa, j);
-                pack.inc();
+    let mut p = 0; // offset into pack
+
+    if rsa == 1 {
+        // if the matrix is contiguous in the same direction we are packing,
+        // copy a kernel row at a time.
+        for ir in 0..mc/mr {
+            let row_offset = ir * mr;
+            for j in 0..kc {
+                let a_row = a.stride_offset(rsa, row_offset)
+                             .stride_offset(csa, j);
+                copy_nonoverlapping(a_row, pack.add(p), mr);
+                p += mr;
+            }
+        }
+    } else {
+        // general layout case
+        for ir in 0..mc/mr {
+            let row_offset = ir * mr;
+            for j in 0..kc {
+                for i in 0..mr {
+                    let a_elt = a.stride_offset(rsa, i + row_offset)
+                                 .stride_offset(csa, j);
+                    copy_nonoverlapping(a_elt, pack.add(p), 1);
+                    p += 1;
+                }
             }
         }
     }
@@ -292,12 +310,13 @@ unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
         for j in 0..kc {
             for i in 0..mr {
                 if i < rest {
-                    *pack = *a.stride_offset(rsa, i + row_offset)
-                              .stride_offset(csa, j);
+                    let a_elt = a.stride_offset(rsa, i + row_offset)
+                                 .stride_offset(csa, j);
+                    copy_nonoverlapping(a_elt, pack.add(p), 1);
                 } else {
-                    *pack = zero;
+                    *pack.add(p) = zero;
                 }
-                pack.inc();
+                p += 1;
             }
         }
     }

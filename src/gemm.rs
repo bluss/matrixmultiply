@@ -8,6 +8,7 @@
 
 use std::cmp::min;
 use std::mem::size_of;
+use std::ptr::copy_nonoverlapping;
 
 use aligned_alloc::Alloc;
 
@@ -272,13 +273,28 @@ unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
     where T: Element
 {
     let mut pack = pack;
-    for ir in 0..mc/mr {
-        let row_offset = ir * mr;
-        for j in 0..kc {
-            for i in 0..mr {
-                *pack = *a.stride_offset(rsa, i + row_offset)
-                          .stride_offset(csa, j);
-                pack.inc();
+
+    // use copy_nonoverlapping so that the compiler is sure the pointers don't overlap
+    if rsa == 1 {
+        for ir in 0..mc/mr {
+            let row_offset = ir * mr;
+            for j in 0..kc {
+                let a_row = a.stride_offset(rsa, row_offset)
+                             .stride_offset(csa, j);
+                copy_nonoverlapping(a_row, pack, mr);
+                pack = pack.stride_offset(1, mr);
+            }
+        }
+    } else {
+        for ir in 0..mc/mr {
+            let row_offset = ir * mr;
+            for j in 0..kc {
+                for i in 0..mr {
+                    let a_elt = a.stride_offset(rsa, i + row_offset)
+                                 .stride_offset(csa, j);
+                    copy_nonoverlapping(a_elt, pack, 1);
+                    pack.inc();
+                }
             }
         }
     }
@@ -292,8 +308,9 @@ unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
         for j in 0..kc {
             for i in 0..mr {
                 if i < rest {
-                    *pack = *a.stride_offset(rsa, i + row_offset)
-                              .stride_offset(csa, j);
+                    let a_elt = a.stride_offset(rsa, i + row_offset)
+                                 .stride_offset(csa, j);
+                    copy_nonoverlapping(a_elt, pack, 1);
                 } else {
                     *pack = zero;
                 }

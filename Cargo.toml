@@ -26,5 +26,9 @@ rawpointer = "0.1"
 [dev-dependencies]
 bencher = "0.1.2"
 
+[profile.release]
+[profile.bench]
+
 [package.metadata.release]
 no-dev-version = true
+

@@ -272,28 +272,30 @@ unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
                   a: *const T, rsa: isize, csa: isize)
     where T: Element
 {
-    let mut pack = pack;
+    let mut p = 0; // offset into pack
 
-    // use copy_nonoverlapping so that the compiler is sure the pointers don't overlap
     if rsa == 1 {
+        // if the matrix is contiguous in the same direction we are packing,
+        // copy a kernel row at a time.
         for ir in 0..mc/mr {
             let row_offset = ir * mr;
             for j in 0..kc {
                 let a_row = a.stride_offset(rsa, row_offset)
                              .stride_offset(csa, j);
-                copy_nonoverlapping(a_row, pack, mr);
-                pack = pack.stride_offset(1, mr);
+                copy_nonoverlapping(a_row, pack.add(p), mr);
+                p += mr;
             }
         }
     } else {
+        // general layout case
         for ir in 0..mc/mr {
             let row_offset = ir * mr;
             for j in 0..kc {
                 for i in 0..mr {
                     let a_elt = a.stride_offset(rsa, i + row_offset)
                                  .stride_offset(csa, j);
-                    copy_nonoverlapping(a_elt, pack, 1);
-                    pack.inc();
+                    copy_nonoverlapping(a_elt, pack.add(p), 1);
+                    p += 1;
                 }
             }
         }
@@ -310,11 +312,11 @@ unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
                 if i < rest {
                     let a_elt = a.stride_offset(rsa, i + row_offset)
                                  .stride_offset(csa, j);
-                    copy_nonoverlapping(a_elt, pack, 1);
+                    copy_nonoverlapping(a_elt, pack.add(p), 1);
                 } else {
-                    *pack = zero;
+                    *pack.add(p) = zero;
                 }
-                pack.inc();
+                p += 1;
             }
         }
     }

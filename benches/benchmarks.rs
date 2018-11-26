@@ -10,7 +10,7 @@ extern crate bencher;
 // by flop / s = 2 M N K / time
 
 
-benchmark_main!(mat_mul_f32, mat_mul_f64, layout_f32_032);
+benchmark_main!(mat_mul_f32, mat_mul_f64, layout_f32_032, layout_f64_032);
 
 macro_rules! mat_mul {
     ($modname:ident, $gemm:ident, $(($name:ident, $m:expr, $n:expr, $k:expr))+) => {
@@ -150,6 +150,10 @@ macro_rules! gemm_layout {
 }
 
 gemm_layout!{layout_f32_032, sgemm,
+    (m032, 32)
+}
+
+gemm_layout!{layout_f64_032, dgemm,
     (m032, 32)
 }
 

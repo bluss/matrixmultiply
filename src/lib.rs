@@ -44,6 +44,11 @@
 //!
 //! Stides can be negative or even zero, but for a mutable matrix elements
 //! may not alias each other.
+//!
+//! ## Other Notes
+//!
+//! The functions in this crate are thread safe, as long as the destination
+//! matrix is distinct.
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.2/")]
 

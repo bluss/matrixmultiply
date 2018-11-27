@@ -19,7 +19,7 @@ only one operation: the general matrix-matrix multiplication (“gemm”).
 
 Blog posts about this crate:
 
-+ `A Gemmed Rabbit Hole`__
++ `gemm: a rabbit hole`__
 
 __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 
@@ -33,6 +33,20 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 
 Recent Changes
 --------------
+
+- 0.2.1
+
+  - Improve matrix packing by taking better advantage of contiguous inputs.
+
+    Benchmark improvement: runtime for 64×64 problem where inputs are either
+    both row major or both column major changed by -5% sgemm and -1% for dgemm.
+    (#26)
+  
+  - In the sgemm avx kernel, handle column major output arrays just like
+    it does row major arrays.
+
+    Benchmark improvement: runtime for 32×32 problem where output is column
+    major changed by -11%. (#27)
 
 - 0.2.0
 

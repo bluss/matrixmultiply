@@ -1,0 +1,2 @@
+test mat_mul_f32::m064 ... bench:      13,857 ns/iter (+/- 500)
+test mat_mul_f64::m064 ... bench:      27,453 ns/iter (+/- 926)

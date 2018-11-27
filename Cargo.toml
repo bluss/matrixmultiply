@@ -1,6 +1,6 @@
 [package]
 name = "matrixmultiply"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["bluss"]
 
 license = "MIT/Apache-2.0"
@@ -12,6 +12,8 @@ description = "General matrix multiplication for f32 and f64 matrices. Operates 
 
 keywords = ["matrix", "sgemm", "dgemm"]
 categories = ["science"]
+
+exclude = ["docs/*"]
 
 [lib]
 bench = false

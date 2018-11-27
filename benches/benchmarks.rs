@@ -14,9 +14,10 @@ extern crate bencher;
 benchmark_main!(
     mat_mul_f32,
     mat_mul_f64,
+    mat_mul_i32,
     layout_f32_032,
     layout_f64_032,
-    mat_mul_i32
+    layout_i32_032
 );
 
 macro_rules! mat_mul {
@@ -113,9 +114,9 @@ macro_rules! gemm_layout {
 
             fn base(bench: &mut Bencher, al: Layout, bl: Layout, cl: Layout)
             {
-                let a = vec![0.; $m * $m]; 
-                let b = vec![0.; $m * $m];
-                let mut c = vec![0.; $m * $m];
+                let a = vec![0 as _; $m * $m]; 
+                let b = vec![0 as _; $m * $m];
+                let mut c = vec![0 as _; $m * $m];
                 let (rsa, csa) = al.strides($m, 1);
                 let (rsb, csb) = bl.strides($m, 1);
                 let (rsc, csc) = cl.strides($m, 1);
@@ -123,10 +124,10 @@ macro_rules! gemm_layout {
                     unsafe {
                         $gemm(
                             $m, $m, $m,
-                            1.,
+                            1 as _,
                             a.as_ptr(), rsa, csa,
                             b.as_ptr(), rsb, csb,
-                            0.,
+                            0 as _,
                             c.as_mut_ptr(), rsc, csc,
                             )
                     }
@@ -161,6 +162,10 @@ gemm_layout!{layout_f32_032, sgemm,
 }
 
 gemm_layout!{layout_f64_032, dgemm,
+    (m032, 32)
+}
+
+gemm_layout!{layout_i32_032, igemm,
     (m032, 32)
 }
 

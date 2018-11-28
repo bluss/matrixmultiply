@@ -8,6 +8,7 @@ trait Float : Copy + Display + Debug + PartialEq {
     fn one() -> Self;
     fn from(x: i64) -> Self;
     fn nan() -> Self;
+    fn is_nan(self) -> bool;
 }
 
 impl Float for f32 {
@@ -15,6 +16,7 @@ impl Float for f32 {
     fn one() -> Self { 1. }
     fn from(x: i64) -> Self { x as Self }
     fn nan() -> Self { 0./0. }
+    fn is_nan(self) -> bool { self.is_nan() }
 }
 
 impl Float for f64 {
@@ -22,6 +24,7 @@ impl Float for f64 {
     fn one() -> Self { 1. }
     fn from(x: i64) -> Self { x as Self }
     fn nan() -> Self { 0./0. }
+    fn is_nan(self) -> bool { self.is_nan() }
 }
 
 
@@ -230,7 +233,7 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
     }
 
     unsafe {
-        // 4 A B
+        // C1 = 3 A B
         F::gemm(
             m, k, n,
             F::from(3),
@@ -240,7 +243,7 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
             c1.as_mut_ptr(), n as isize, 1,
         );
 
-        // A B 
+        // C2 = A B 
         F::gemm(
             m, k, n,
             F::one(),
@@ -249,7 +252,7 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
             F::zero(),
             c2.as_mut_ptr(), n as isize, 1,
         );
-        // (2 A B) + A B
+        // C2 = A B + 2 C2
         F::gemm(
             m, k, n,
             F::one(),
@@ -260,7 +263,7 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
         );
     }
     for (i, (x, y)) in c1.iter().zip(&c2).enumerate() {
-        if x != y {
+        if x != y || x.is_nan() || y.is_nan() {
             if k != 0 && n != 0 && small {
                 for row in a.chunks(k) {
                     println!("{:?}", row);

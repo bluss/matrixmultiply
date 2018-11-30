@@ -106,6 +106,9 @@ fn test_gemm_strides<F>() where F: Gemm + Float {
     for n in (3..12).map(|x| x * 7) {
         test_strides::<F>(n, n, n);
     }
+
+    test_strides::<F>(8, 12, 16);
+    test_strides::<F>(8, 0, 10);
 }
 
 fn test_gemm<F>() where F: Gemm + Float {

@@ -324,8 +324,8 @@ use self::Layout::*;
 impl Layout {
     fn strides_scaled(self, m: usize, n: usize, scale: [usize; 2]) -> (isize, isize) {
         match self {
-            C => ((n * scale[1]) as isize, scale[1] as isize),
-            F => (scale[0] as isize, (m * scale[0]) as isize),
+            C => ((n * scale[0] * scale[1]) as isize, scale[1] as isize),
+            F => (scale[0] as isize, (m * scale[1] * scale[0]) as isize),
         }
     }
 }

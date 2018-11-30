@@ -1,6 +1,14 @@
+extern crate itertools;
 extern crate matrixmultiply;
+
 use matrixmultiply::{sgemm, dgemm};
 
+use itertools::Itertools;
+use itertools::{
+    cloned,
+    enumerate,
+    repeat_n,
+};
 use std::fmt::{Display, Debug};
 
 trait Float : Copy + Display + Debug + PartialEq {
@@ -82,6 +90,23 @@ fn test_sgemm() {
 fn test_dgemm() {
     test_gemm::<f64>();
 }
+#[test]
+fn test_sgemm_strides() {
+    test_gemm_strides::<f32>();
+}
+#[test]
+fn test_dgemm_strides() {
+    test_gemm_strides::<f64>();
+}
+
+fn test_gemm_strides<F>() where F: Gemm + Float {
+    for n in 0..10 {
+        test_strides::<F>(n, n, n);
+    }
+    for n in (3..12).map(|x| x * 7) {
+        test_strides::<F>(n, n, n);
+    }
+}
 
 fn test_gemm<F>() where F: Gemm + Float {
     test_mul_with_id::<F>(4, 4, true);
@@ -117,6 +142,7 @@ fn test_gemm<F>() where F: Gemm + Float {
     test_scale::<F>(4, 4, 4, true);
     test_scale::<F>(19, 20, 16, true);
     test_scale::<F>(150, 140, 128, false);
+
 }
 
 /// multiply a M x N matrix with an N x N id matrix
@@ -283,4 +309,161 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
         }
     }
     println!("passed matrix with id input M={}, N={}", m, n);
+}
+
+
+
+//
+// Custom stride tests
+//
+
+#[derive(Copy, Clone, Debug)]
+enum Layout { C, F }
+use self::Layout::*;
+
+impl Layout {
+    fn strides_scaled(self, m: usize, n: usize, scale: [usize; 2]) -> (isize, isize) {
+        match self {
+            C => ((n * scale[1]) as isize, scale[1] as isize),
+            F => (scale[0] as isize, (m * scale[0]) as isize),
+        }
+    }
+}
+
+impl Default for Layout {
+    fn default() -> Self { C }
+}
+
+
+#[cfg(test)]
+fn test_strides<F>(m: usize, k: usize, n: usize)
+    where F: Gemm + Float
+{
+    let (m, k, n) = (m, k, n);
+
+    let stride_multipliers = vec![[1, 2], [2, 2], [2, 3], [1, 1], [2, 2], [4, 1], [3, 4]];
+    let mut multipliers_iter = cloned(&stride_multipliers).cycle();
+
+    let layout_species = [C, F];
+    let layouts_iter = repeat_n(cloned(&layout_species), 4).multi_cartesian_product();
+
+    for elt in layouts_iter {
+        let layouts = [elt[0], elt[1], elt[2], elt[3]];
+        let (m0, m1, m2, m3) = multipliers_iter.next_tuple().unwrap();
+        test_strides_inner::<F>(m, k, n, [m0, m1, m2, m3], layouts);
+    }
+}
+
+
+fn test_strides_inner<F>(m: usize, k: usize, n: usize,
+                         stride_multipliers: [[usize; 2]; 4],
+                         layouts: [Layout; 4])
+    where F: Gemm + Float
+{
+    let (m, k, n) = (m, k, n);
+
+    // stride multipliers
+    let mstridea = stride_multipliers[0];
+    let mstrideb = stride_multipliers[1];
+    let mstridec = stride_multipliers[2];
+    let mstridec2 = stride_multipliers[3];
+
+    let mut a = vec![F::zero(); m * k * mstridea[0] * mstridea[1]]; 
+    let mut b = vec![F::zero(); k * n * mstrideb[0] * mstrideb[1]];
+    let mut c1 = vec![F::nan(); m * n * mstridec[0] * mstridec[1]];
+    let mut c2 = vec![F::nan(); m * n * mstridec2[0] * mstridec2[1]];
+
+    for (i, elt) in a.iter_mut().enumerate() {
+        *elt = F::from(i as i64);
+    }
+    for (i, elt) in b.iter_mut().enumerate() {
+        *elt = F::from(i as i64);
+    }
+
+    let la = layouts[0];
+    let lb = layouts[1];
+    let lc1 = layouts[2];
+    let lc2 = layouts[3];
+    let (rs_a, cs_a) = la.strides_scaled(m, k, mstridea);
+    let (rs_b, cs_b) = lb.strides_scaled(k, n, mstrideb);
+    let (rs_c1, cs_c1) = lc1.strides_scaled(m, n, mstridec);
+    let (rs_c2, cs_c2) = lc2.strides_scaled(m, n, mstridec2);
+
+    println!("Test matrix a : {} × {} layout: {:?} strides {}, {}", m, k, la, rs_a, cs_a);
+    println!("Test matrix b : {} × {} layout: {:?} strides {}, {}", k, n, lb, rs_b, cs_b);
+    println!("Test matrix c1: {} × {} layout: {:?} strides {}, {}", m, n, lc1, rs_c1, cs_c1);
+    println!("Test matrix c2: {} × {} layout: {:?} strides {}, {}", m, n, lc2, rs_c2, cs_c2);
+
+    macro_rules! c1 {
+        ($i:expr, $j:expr) => (*c1.as_ptr().offset(rs_c1 * $i as isize + cs_c1 * $j as isize));
+    }
+
+    macro_rules! c2 {
+        ($i:expr, $j:expr) => (*c2.as_ptr().offset(rs_c2 * $i as isize + cs_c2 * $j as isize));
+    }
+
+    unsafe {
+        // C1 = A B
+        F::gemm(
+            m, k, n,
+            F::from(1),
+            a.as_ptr(), rs_a, cs_a,
+            b.as_ptr(), rs_b, cs_b,
+            F::zero(),
+            c1.as_mut_ptr(), rs_c1, cs_c1,
+        );
+        
+        // C1 += 2 A B
+        F::gemm(
+            m, k, n,
+            F::from(2),
+            a.as_ptr(), rs_a, cs_a,
+            b.as_ptr(), rs_b, cs_b,
+            F::from(1),
+            c1.as_mut_ptr(), rs_c1, cs_c1,
+        );
+
+        // C2 = 3 A B 
+        F::gemm(
+            m, k, n,
+            F::from(3),
+            a.as_ptr(), rs_a, cs_a,
+            b.as_ptr(), rs_b, cs_b,
+            F::zero(),
+            c2.as_mut_ptr(), rs_c2, cs_c2,
+        );
+    }
+    for i in 0..m {
+        for j in 0..n {
+            unsafe {
+                let c1_elt = c1![i, j];
+                let c2_elt = c2![i, j];
+                assert_eq!(c1_elt, c2_elt,
+                           "assertion failed for matrices, mismatch at {},{} \n\
+                           a:: {:?}\n\
+                           b:: {:?}\n\
+                           c1: {:?}\n\
+                           c2: {:?}\n",
+                           i, j,
+                           a, b,
+                           c1, c2);
+
+            }
+        }
+    }
+    // check we haven't overwritten the NaN values outside the passed output
+    for (index, elt) in enumerate(&c1) {
+        let i = index / rs_c1 as usize;
+        let j = index / cs_c1 as usize;
+        let irem = index % rs_c1 as usize;
+        let jrem = index % cs_c1 as usize;
+        if irem != 0 && jrem != 0 {
+            assert!(elt.is_nan(),
+                "Element at index={} ({}, {}) should be NaN, but was {}\n\
+                c1: {:?}\n",
+            index, i, j, elt,
+            c1);
+        }
+    }
+    println!("{}×{}×{} {:?} .. passed.", m, k, n, layouts);
 }

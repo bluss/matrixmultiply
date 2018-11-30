@@ -309,7 +309,6 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
         // Read C
         if csc == 1 {
             loop_m!(i, cv[i] = _mm256_loadu_ps(c![i, 0]));
-        // Handle rsc == 1 case with transpose?
         } else {
             loop_m!(i, cv[i] = _mm256_set_ps(*c![i, 7], *c![i, 6], *c![i, 5], *c![i, 4], *c![i, 3], *c![i, 2], *c![i, 1], *c![i, 0]));
         }
@@ -323,7 +322,6 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     // Store C back to memory
     if csc == 1 {
         loop_m!(i, _mm256_storeu_ps(c![i, 0], cv[i]));
-    // Handle rsc == 1 case with transpose?
     } else {
         // Permute to bring each element in the vector to the front and store
         loop_m!(i, {

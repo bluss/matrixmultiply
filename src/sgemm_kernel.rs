@@ -303,35 +303,35 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // C ← α A B + β C
-    let mut c = [_mm256_setzero_ps(); MR];
+    let mut cv = [_mm256_setzero_ps(); MR];
     let betav = _mm256_set1_ps(beta);
     if beta != 0. {
         // Read C
         if csc == 1 {
-            loop_m!(i, c[i] = _mm256_loadu_ps(c![i, 0]));
+            loop_m!(i, cv[i] = _mm256_loadu_ps(c![i, 0]));
         // Handle rsc == 1 case with transpose?
         } else {
-            loop_m!(i, c[i] = _mm256_set_ps(*c![i, 7], *c![i, 6], *c![i, 5], *c![i, 4], *c![i, 3], *c![i, 2], *c![i, 1], *c![i, 0]));
+            loop_m!(i, cv[i] = _mm256_set_ps(*c![i, 7], *c![i, 6], *c![i, 5], *c![i, 4], *c![i, 3], *c![i, 2], *c![i, 1], *c![i, 0]));
         }
         // Compute β C
-        loop_m!(i, c[i] = _mm256_mul_ps(c[i], betav));
+        loop_m!(i, cv[i] = _mm256_mul_ps(cv[i], betav));
     }
 
     // Compute (α A B) + (β C)
-    loop_m!(i, c[i] = _mm256_add_ps(c[i], ab[i]));
+    loop_m!(i, cv[i] = _mm256_add_ps(cv[i], ab[i]));
 
     // Store C back to memory
     if csc == 1 {
-        loop_m!(i, _mm256_storeu_ps(c![i, 0], c[i]));
+        loop_m!(i, _mm256_storeu_ps(c![i, 0], cv[i]));
     // Handle rsc == 1 case with transpose?
     } else {
         // Permute to bring each element in the vector to the front and store
         loop_m!(i, {
-            let clo = _mm256_extractf128_ps(c[i], 0);
-            let chi = _mm256_extractf128_ps(c[i], 1);
+            let cvlo = _mm256_extractf128_ps(cv[i], 0);
+            let cvhi = _mm256_extractf128_ps(cv[i], 1);
 
-            _mm_store_ss(c![i, 0], clo);
-            let cperm = _mm_permute_ps(clo, permute_mask!(0, 3, 2, 1));
+            _mm_store_ss(c![i, 0], cvlo);
+            let cperm = _mm_permute_ps(cvlo, permute_mask!(0, 3, 2, 1));
             _mm_store_ss(c![i, 1], cperm);
             let cperm = _mm_permute_ps(cperm, permute_mask!(0, 3, 2, 1));
             _mm_store_ss(c![i, 2], cperm);
@@ -339,8 +339,8 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
             _mm_store_ss(c![i, 3], cperm);
 
 
-            _mm_store_ss(c![i, 4], chi);
-            let cperm = _mm_permute_ps(chi, permute_mask!(0, 3, 2, 1));
+            _mm_store_ss(c![i, 4], cvhi);
+            let cperm = _mm_permute_ps(cvhi, permute_mask!(0, 3, 2, 1));
             _mm_store_ss(c![i, 5], cperm);
             let cperm = _mm_permute_ps(cperm, permute_mask!(0, 3, 2, 1));
             _mm_store_ss(c![i, 6], cperm);

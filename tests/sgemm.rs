@@ -395,11 +395,11 @@ fn test_strides_inner<F>(m: usize, k: usize, n: usize,
     println!("Test matrix c2: {} × {} layout: {:?} strides {}, {}", m, n, lc2, rs_c2, cs_c2);
 
     macro_rules! c1 {
-        ($i:expr, $j:expr) => (*c1.as_ptr().offset(rs_c1 * $i as isize + cs_c1 * $j as isize));
+        ($i:expr, $j:expr) => (c1[(rs_c1 * $i as isize + cs_c1 * $j as isize) as usize]);
     }
 
     macro_rules! c2 {
-        ($i:expr, $j:expr) => (*c2.as_ptr().offset(rs_c2 * $i as isize + cs_c2 * $j as isize));
+        ($i:expr, $j:expr) => (c2[(rs_c2 * $i as isize + cs_c2 * $j as isize) as usize]);
     }
 
     unsafe {
@@ -435,20 +435,17 @@ fn test_strides_inner<F>(m: usize, k: usize, n: usize,
     }
     for i in 0..m {
         for j in 0..n {
-            unsafe {
-                let c1_elt = c1![i, j];
-                let c2_elt = c2![i, j];
-                assert_eq!(c1_elt, c2_elt,
-                           "assertion failed for matrices, mismatch at {},{} \n\
-                           a:: {:?}\n\
-                           b:: {:?}\n\
-                           c1: {:?}\n\
-                           c2: {:?}\n",
-                           i, j,
-                           a, b,
-                           c1, c2);
-
-            }
+            let c1_elt = c1![i, j];
+            let c2_elt = c2![i, j];
+            assert_eq!(c1_elt, c2_elt,
+                       "assertion failed for matrices, mismatch at {},{} \n\
+                       a:: {:?}\n\
+                       b:: {:?}\n\
+                       c1: {:?}\n\
+                       c2: {:?}\n",
+                       i, j,
+                       a, b,
+                       c1, c2);
         }
     }
     // check we haven't overwritten the NaN values outside the passed output

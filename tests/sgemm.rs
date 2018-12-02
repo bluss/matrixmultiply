@@ -100,7 +100,7 @@ fn test_dgemm_strides() {
 }
 
 fn test_gemm_strides<F>() where F: Gemm + Float {
-    for n in 0..10 {
+    for n in 0..20 {
         test_strides::<F>(n, n, n);
     }
     for n in (3..12).map(|x| x * 7) {

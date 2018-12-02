@@ -505,7 +505,10 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 
     // TODO: Uncomment this when finalizing this method to use the fast codepath.
     // Store C back to memory
-    //if rsc == 1 {
+    if rsc == 1 {
+        loop4!(i, _mm256_storeu_pd(c![0, i], cv[i]));
+        loop4!(i, _mm256_storeu_pd(c![4, i], cv[i + 4]));
+    } else {
     //    // XXX: Is it possible to do an aligned load here? Unaligned load
     //    // comes with some performance penalty. Can we pack the c matrix
     //    // in some way to make this possible?
@@ -553,7 +556,7 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
             _mm_storel_pd(c![6, i], c_hi);
             _mm_storeh_pd(c![7, i], c_hi);
         });
-    // }
+    }
 }
 
 #[inline(always)]

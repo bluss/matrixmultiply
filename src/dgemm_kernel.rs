@@ -488,15 +488,13 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 
         // Read C
         if rsc == 1 {
-            loop_m!(i, cv[i] = _mm256_loadu_pd(c![i, 0]));
-        // Handle rsc == 1 case with transpose?
+            loop4!(i, cv[i] = _mm256_loadu_pd(c![0, i]));
+            loop4!(i, cv[i + 4] = _mm256_loadu_pd(c![4, i]));
         } else {
-            loop_m!(i, cv[i] = _mm256_set_pd(
-                *c![i, 3],
-                *c![i, 2],
-                *c![i, 1],
-                *c![i, 0]
-            ));
+            loop4!(i, cv[i] = _mm256_setr_pd(*c![0, i], *c![1, i],
+                                             *c![2, i], *c![3, i]));
+            loop4!(i, cv[i + 4] = _mm256_setr_pd(*c![4, i], *c![5, i],
+                                                 *c![6, i], *c![7, i]));
         }
         // Compute β C
         loop_m!(i, cv[i] = _mm256_mul_pd(cv[i], beta_v));

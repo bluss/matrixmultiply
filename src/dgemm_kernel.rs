@@ -40,7 +40,7 @@ impl GemmKernel for Gemm {
     fn nr() -> usize { NR }
 
     #[inline(always)]
-    fn always_masked() -> bool { true }
+    fn always_masked() -> bool { false }
 
     #[inline(always)]
     fn nc() -> usize { archparam::D_NC }
@@ -119,11 +119,12 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 
     let mut ab = [_mm256_setzero_pd(); MR];
 
+    // TODO: Allow calculating the case C^T = B^T A^T as described below.
     // this kernel can operate in either transposition (C = A B or C^T = B^T A^T)
-    let prefer_row_major_c = rsc != 1;
+    let prefer_col_major_c = rsc == 1;
 
-    // let (mut a, mut b) = if prefer_row_major_c { (a, b) } else { (b, a) };
-    // let (rsc, csc) = if prefer_row_major_c { (rsc, csc) } else { (csc, rsc) };
+    // let (mut a, mut b) = if prefer_col_major_c { (a, b) } else { (b, a) };
+    // let (rsc, csc) = if prefer_col_major_c { (rsc, csc) } else { (csc, rsc) };
     let (mut a, mut b) = (a, b);
 
     // With MR=8, we load sets of 4 doubles from a
@@ -479,71 +480,82 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     // C ← α A B + β C
     // XXX: Explictly setting c might not be necessary if we don't handle
     // the β = 0 case separately.
-    let mut c = [_mm256_setzero_pd(); MR];
+    let mut cv = [_mm256_setzero_pd(); MR];
 
-    // _mm256_set1_pd and _mm256_broadcast_sd seem to achieve the same thing.
-    let beta_v = _mm256_broadcast_sd(&beta);
+    if beta != 0. {
+        // _mm256_set1_pd and _mm256_broadcast_sd seem to achieve the same thing.
+        let beta_v = _mm256_broadcast_sd(&beta);
 
-    // Read C
-    if rsc == 1 {
-        // XXX: Is it possible to do an aligned load here? Unaligned load
-        // comes with some performance penalty.
-        loop_m!(i, c[i] = _mm256_loadu_pd(c![i, 0]));
-    // TODO: The case csc == 1 should be handled separately in the future.
-    } else {
-        loop_m!(i, c[i] = _mm256_set_pd(
-            *c![3, i],
-            *c![2, i],
-            *c![1, i],
-            *c![0, i]
-        ));
+        // Read C
+        if rsc == 1 {
+            loop_m!(i, cv[i] = _mm256_loadu_pd(c![i, 0]));
+        // Handle rsc == 1 case with transpose?
+        } else {
+            loop_m!(i, cv[i] = _mm256_set_pd(
+                *c![i, 3],
+                *c![i, 2],
+                *c![i, 1],
+                *c![i, 0]
+            ));
+        }
+        // Compute β C
+        loop_m!(i, cv[i] = _mm256_mul_pd(cv[i], beta_v));
     }
-    // Compute β C
-    loop_m!(i, c[i] = _mm256_mul_pd(c[i], beta_v));
 
     // Compute (α A B) + (β C)
-    loop_m!(i, c[i] = _mm256_add_pd(c[i], ab[i]));
+    loop_m!(i, cv[i] = _mm256_add_pd(cv[i], ab[i]));
 
+    // TODO: Uncomment this when finalizing this method to use the fast codepath.
     // Store C back to memory
-    if rsc == 1 {
-        // XXX: Is it possible to do an aligned load here? Unaligned load
-        // comes with some performance penalty. Can we pack the c matrix
-        // in some way to make this possible?
-        //
-        // From: ab[0] = a0b0_a1b0_a2b0_a3b0;
-        _mm256_storeu_pd(c![0, 0], c[0]);
-        // From: ab[4] = a4b0_a5b0_a6b0_a7b0;
-        _mm256_storeu_pd(c![4, 0], c[4]);
-        // From: ab[1] = a0b1_a1b1_a2b1_a3b1;
-        _mm256_storeu_pd(c![0, 1], c[1]);
-        // From: ab[5] = a4b1_a5b1_a6b1_a7b1;
-        _mm256_storeu_pd(c![4, 1], c[5]);
-        // From: ab[2] = a0b2_a1b2_a2b2_a3b2;
-        _mm256_storeu_pd(c![0, 2], c[2]);
-        // From: ab[6] = a4b2_a5b2_a6b2_a7b2;
-        _mm256_storeu_pd(c![4, 2], c[6]);
-        // From: ab[3] = a0b3_a1b3_a2b3_a3b3;
-        _mm256_storeu_pd(c![0, 3], c[3]);
-        // From: ab[7] = a4b3_a5b3_a6b3_a7b3;
-        _mm256_storeu_pd(c![4, 3], c[7]);
+    //if rsc == 1 {
+    //    // XXX: Is it possible to do an aligned load here? Unaligned load
+    //    // comes with some performance penalty. Can we pack the c matrix
+    //    // in some way to make this possible?
+    //    //
+    //    // From: ab[0] = a0b0_a1b0_a2b0_a3b0;
+    //    _mm256_storeu_pd(c![0, 0], cv[0]);
+    //    // From: ab[4] = a4b0_a5b0_a6b0_a7b0;
+    //    _mm256_storeu_pd(c![4, 0], cv[4]);
+    //    // From: ab[1] = a0b1_a1b1_a2b1_a3b1;
+    //    _mm256_storeu_pd(c![0, 1], cv[1]);
+    //    // From: ab[5] = a4b1_a5b1_a6b1_a7b1;
+    //    _mm256_storeu_pd(c![4, 1], cv[5]);
+    //    // From: ab[2] = a0b2_a1b2_a2b2_a3b2;
+    //    _mm256_storeu_pd(c![0, 2], cv[2]);
+    //    // From: ab[6] = a4b2_a5b2_a6b2_a7b2;
+    //    _mm256_storeu_pd(c![4, 2], cv[6]);
+    //    // From: ab[3] = a0b3_a1b3_a2b3_a3b3;
+    //    _mm256_storeu_pd(c![0, 3], cv[3]);
+    //    // From: ab[7] = a4b3_a5b3_a6b3_a7b3;
+    //    _mm256_storeu_pd(c![4, 3], cv[7]);
     // TODO: The case csc == 1 should be handled separately by using the scheme b) described above.
     // By doing a shuffle + permute we can get simd 4-vectors packed along a row making it possible
     // to store them with one operation (similar to the case rsc == 1, where we use scheme a),
     // doing a blend + permute and getting a simd 4-vector along a row).
-    } else {
+    // } else {
         // Permute to bring each element in the vector to the front and store
-        loop_m!(i, {
+        loop4!(i, {
             // E.g. c_0_lo = a0b0 | a1b0
-            let c_lo: __m128d = _mm256_extractf128_pd(c[i], 0);
+            let c_lo: __m128d = _mm256_extractf128_pd(cv[i], 0);
             // E.g. c_0_hi = a2b0 | a3b0
-            let c_hi: __m128d = _mm256_extractf128_pd(c[i], 1);
+            let c_hi: __m128d = _mm256_extractf128_pd(cv[i], 1);
 
-            _mm_storel_pd(c![i, 0], c_lo);
-            _mm_storer_pd(c![i, 1], c_lo);
-            _mm_storel_pd(c![i, 2], c_hi);
-            _mm_storer_pd(c![i, 3], c_hi);
+            _mm_storel_pd(c![0, i], c_lo);
+            _mm_storeh_pd(c![1, i], c_lo);
+            _mm_storel_pd(c![2, i], c_hi);
+            _mm_storeh_pd(c![3, i], c_hi);
+
+            // E.g. c_0_lo = a0b0 | a1b0
+            let c_lo: __m128d = _mm256_extractf128_pd(cv[i+4], 0);
+            // E.g. c_0_hi = a2b0 | a3b0
+            let c_hi: __m128d = _mm256_extractf128_pd(cv[i+4], 1);
+
+            _mm_storel_pd(c![4, i], c_lo);
+            _mm_storeh_pd(c![5, i], c_lo);
+            _mm_storel_pd(c![6, i], c_hi);
+            _mm_storeh_pd(c![7, i], c_hi);
         });
-    }
+    // }
 }
 
 #[inline(always)]

@@ -32,7 +32,7 @@ impl GemmKernel for Gemm {
     type Elem = T;
 
     #[inline(always)]
-    fn align_to() -> usize { 0 }
+    fn align_to() -> usize { 32 }
 
     #[inline(always)]
     fn mr() -> usize { MR }
@@ -128,11 +128,11 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     let (mut a, mut b) = (a, b);
 
     // With MR=8, we load sets of 4 doubles from a
-    let mut a_0123 = _mm256_loadu_pd(a);
-    let mut a_4567 = _mm256_loadu_pd(a.add(4));
+    let mut a_0123 = _mm256_load_pd(a);
+    let mut a_4567 = _mm256_load_pd(a.add(4));
 
     // With NR=4, we load 4 doubles from b
-    let mut b_0123 = _mm256_loadu_pd(b);
+    let mut b_0123 = _mm256_load_pd(b);
 
     unroll_by_with_last!(4 => k, is_last, {
 
@@ -214,9 +214,9 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
             a = a.add(MR);
             b = b.add(NR);
 
-            a_0123 = _mm256_loadu_pd(a);
-            a_4567 = _mm256_loadu_pd(a.add(4));
-            b_0123 = _mm256_loadu_pd(b);
+            a_0123 = _mm256_load_pd(a);
+            a_4567 = _mm256_load_pd(a.add(4));
+            b_0123 = _mm256_load_pd(b);
         }
     });
 

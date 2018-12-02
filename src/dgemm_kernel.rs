@@ -76,7 +76,7 @@ impl GemmKernel for Gemm {
 /// + rsc: row stride of c
 /// + csc: col stride of c
 /// + if beta is 0, then c does not need to be initialized
-#[inline(always)]
+#[inline(never)]
 pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
                      beta: T, c: *mut T, rsc: isize, csc: isize)
 {

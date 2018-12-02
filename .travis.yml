@@ -20,6 +20,10 @@ matrix:
         TARGET=x86_64-unknown-linux-gnu
     - rust: nightly
       env:
+        TARGET=x86_64-unknown-linux-gnu
+        MMNO_avx=1
+    - rust: nightly
+      env:
         TARGET=aarch64-unknown-linux-gnu
         BUILD_ONLY=1
 env:

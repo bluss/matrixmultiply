@@ -665,13 +665,12 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
 }
 
 #[inline(always)]
-pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
+unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
                                    beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     let mut ab: [[T; NR]; MR] = [[0.; NR]; MR];
     let mut a = a;
     let mut b = b;
-    debug_assert_eq!(beta, 0.); // always masked
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by!(4 => k, {
@@ -685,8 +684,12 @@ pub unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
     }
 
-    // set C = α A B
-    loop_m!(i, loop_n!(j, *c![i, j] = alpha * ab[i][j]));
+    // set C = α A B + β C
+    if beta == 0. {
+        loop_n!(j, loop_m!(i, *c![i, j] = alpha * ab[i][j]));
+    } else {
+        loop_n!(j, loop_m!(i, *c![i, j] = *c![i, j] * beta + alpha * ab[i][j]));
+    }
 }
 
 #[inline(always)]

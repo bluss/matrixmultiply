@@ -137,7 +137,6 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     let mut b_0123 = _mm256_load_pd(b);
 
     unroll_by_with_last!(4 => k, is_last, {
-
         // We need to multiply each element of b with each element of a_0
         // and a_1. To do so, we need to generate all possible permutations
         // for the doubles in b, but without two permutations having the
@@ -388,86 +387,205 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     // => _mm256_permute_2f128_pd with 0x03 = 0b0001_0011
     // a3 b0 | a3 b1 | a3 b2 | a3 b3
 
-    // Scheme a), step 0.0
-    // ab[0] = a0 b0 | a1 b1 | a2 b2 | a3 b3
-    // ab[1] = a0 b1 | a1 b0 | a2 b3 | a3 b2
-    let a0b0_a1b0_a2b2_a3b2 = _mm256_blend_pd(ab[0], ab[1], 0b1010);
-    // Scheme a), step 0.1
-    let a0b1_a1b1_a2b3_a3b3 = _mm256_blend_pd(ab[1], ab[0], 0b1010);
+    // We use scheme a) as the default case, i.e. if c is column-major, rsc==1, or if
+    // c is of general form. Row-major c matrices, csc==1, are treated using schema b).
+    if csc == 1 {
+        // Scheme b), step 0.0
+        // a0 b0 | a1 b1 | a2 b2 | a3 b3
+        // a0 b1 | a1 b0 | a2 b3 | a3 b2
+        let a0b0_a0b1_a2b2_a2b3 = _mm256_shuffle_pd(ab[0], ab[1], 0b0000);
 
-    // Scheme a), steps 0.2
-    // ab[2] = a0 b2 | a1 b3 | a2 b0 | a3 b1
-    // ab[3] = a0 b3 | a1 b2 | a2 b1 | a3 b0
-    let a0b2_a1b2_a2b0_a3b0 = _mm256_blend_pd(ab[2], ab[3], 0b1010);
-    // Scheme a), steps 0.3
-    let a0b3_a1b3_a2b1_a3b1 = _mm256_blend_pd(ab[3], ab[2], 0b1010);
+        // Scheme b), step 0.1
+        // a0 b1 | a1 b0 | a2 b3 | a3 b2 (flipped the order)
+        // a0 b0 | a1 b1 | a2 b2 | a3 b3
+        let a1b0_a1b1_a3b2_a3b3 = _mm256_shuffle_pd(ab[1], ab[0], 0b1111);
 
-    // ab[4] = a4 b0 | a5 b1 | a6 b2 | a7 b3
-    // ab[5] = a4 b1 | a5 b0 | a6 b3 | a7 b2
-    let a4b0_a5b0_a6b2_a7b2 = _mm256_blend_pd(ab[4], ab[5], 0b1010);
-    let a4b1_a5b1_a6b3_a7b3 = _mm256_blend_pd(ab[5], ab[4], 0b1010);
+        // Scheme b), step 0.2
+        // a0 b2 | a1 b3 | a2 b0 | a3 b1
+        // a0 b3 | a1 b2 | a2 b1 | a3 b0
+        let a0b2_a0b3_a2b0_a2b1 = _mm256_shuffle_pd(ab[2], ab[3], 0b0000);
 
-    // ab[6] = a0 b2 | a1 b3 | a2 b0 | a3 b1
-    // ab[7] = a0 b3 | a1 b2 | a2 b1 | a3 b0
-    let a4b2_a5b2_a6b0_a7b0 = _mm256_blend_pd(ab[6], ab[7], 0b1010);
-    let a4b3_a5b3_a6b1_a7b1 = _mm256_blend_pd(ab[7], ab[6], 0b1010);
+        // Scheme b), step 0.3
+        // a0 b3 | a1 b2 | a2 b1 | a3 b0 (flipped the order)
+        // a0 b2 | a1 b3 | a2 b0 | a3 b1
+        let a1b2_a1b3_a3b0_a3b1 = _mm256_shuffle_pd(ab[3], ab[2], 0b1111);
 
-    // Scheme a), step 1.0
-    let a0b0_a1b0_a2b0_a3b0 = _mm256_permute2f128_pd(
-        a0b0_a1b0_a2b2_a3b2,
-        a0b2_a1b2_a2b0_a3b0,
-        0x30
-    );
-    // Scheme a), step 1.1
-    let a0b2_a1b2_a2b2_a3b2 = _mm256_permute2f128_pd(
-        a0b0_a1b0_a2b2_a3b2,
-        a0b2_a1b2_a2b0_a3b0,
-        0x12,
-    );
-    // Scheme a) step 1.2
-    let a0b1_a1b1_a2b1_a3b1 = _mm256_permute2f128_pd(
-        a0b1_a1b1_a2b3_a3b3,
-        a0b3_a1b3_a2b1_a3b1,
-        0x30
-    );
-    // Scheme a) step 1.3
-    let a0b3_a1b3_a2b3_a3b3 = _mm256_permute2f128_pd(
-        a0b1_a1b1_a2b3_a3b3,
-        a0b3_a1b3_a2b1_a3b1,
-        0x12
-    );
+        let a4b0_a4b1_a6b2_a6b3 = _mm256_shuffle_pd(ab[4], ab[5], 0b0000);
+        let a5b0_a5b1_a7b2_a7b3 = _mm256_shuffle_pd(ab[5], ab[4], 0b1111);
 
-    // As above, but for ab[4..7]
-    let a4b0_a5b0_a6b0_a7b0 = _mm256_permute2f128_pd(
-        a4b0_a5b0_a6b2_a7b2,
-        a4b2_a5b2_a6b0_a7b0,
-        0x30
-    );
-    let a4b2_a5b2_a6b2_a7b2 = _mm256_permute2f128_pd(
-        a4b0_a5b0_a6b2_a7b2,
-        a4b2_a5b2_a6b0_a7b0,
-        0x12,
-    );
-    let a4b1_a5b1_a6b1_a7b1 = _mm256_permute2f128_pd(
-        a4b1_a5b1_a6b3_a7b3,
-        a4b3_a5b3_a6b1_a7b1,
-        0x30
-    );
-    let a4b3_a5b3_a6b3_a7b3 = _mm256_permute2f128_pd(
-        a4b1_a5b1_a6b3_a7b3,
-        a4b3_a5b3_a6b1_a7b1,
-        0x12
-    );
+        let a4b2_a4b3_a6b0_a6b1 = _mm256_shuffle_pd(ab[6], ab[7], 0b0000);
+        let a5b2_a5b3_a7b0_a7b1 = _mm256_shuffle_pd(ab[7], ab[6], 0b1111);
 
-    ab[0] = a0b0_a1b0_a2b0_a3b0;
-    ab[1] = a0b1_a1b1_a2b1_a3b1;
-    ab[2] = a0b2_a1b2_a2b2_a3b2;
-    ab[3] = a0b3_a1b3_a2b3_a3b3;
+        // Next, we can apply _mm256_permute2f128_pd to select the
+        // correct columns on the matching rows:
+        //
+        // Step 1.0 (combining Steps 0.0 and 0.2):
+        // a0 b0 | a0 b1 | a2 b2 | a2 b3
+        // a0 b2 | a0 b3 | a2 b0 | a2 b1
+        // => _mm256_permute_2f128_pd with 0x20 = 0b0010_0000
+        // a0 b0 | a0 b1 | a0 b2 | a0 b3
+        //
+        // Step 1.1 (combining Steps 0.0 and 0.2):
+        // a0 b0 | a0 b1 | a2 b2 | a2 b3
+        // a0 b2 | a0 b3 | a2 b0 | a2 b1
+        // => _mm256_permute_2f128_pd with 0x03 = 0b0001_0011
+        // a2 b0 | a2 b1 | a2 b2 | a2 b3
+        //
+        // Step 1.2 (combining Steps 0.1 and 0.3):
+        // a1 b0 | a1 b1 | a3 b2 | a3 b3
+        // a1 b2 | a1 b3 | a3 b0 | a3 b1
+        // => _mm256_permute_2f128_pd with 0x20 = 0b0010_0000
+        // a1 b0 | a1 b1 | a1 b2 | a1 b3
+        //
+        // Step 1.3 (combining Steps 0.1 and 0.3):
+        // a1 b0 | a1 b1 | a3 b2 | a3 b3
+        // a1 b2 | a1 b3 | a3 b0 | a3 b1
+        // => _mm256_permute_2f128_pd with 0x03 = 0b0001_0011
+        // a3 b0 | a3 b1 | a3 b2 | a3 b3
 
-    ab[4] = a4b0_a5b0_a6b0_a7b0;
-    ab[5] = a4b1_a5b1_a6b1_a7b1;
-    ab[6] = a4b2_a5b2_a6b2_a7b2;
-    ab[7] = a4b3_a5b3_a6b3_a7b3;
+        // Scheme b), step 1.0
+        let a0b0_a0b1_a0b2_a0b3 = _mm256_permute2f128_pd(
+            a0b0_a0b1_a2b2_a2b3,
+            a0b2_a0b3_a2b0_a2b1,
+            0x20
+        );
+        // Scheme b), step 1.1
+        let a2b0_a2b1_a2b2_a2b3 = _mm256_permute2f128_pd(
+            a0b0_a0b1_a2b2_a2b3,
+            a0b2_a0b3_a2b0_a2b1,
+            0x13
+        );
+        // Scheme b) step 1.2
+        let a1b0_a1b1_a1b2_a1b3 = _mm256_permute2f128_pd(
+            a1b0_a1b1_a3b2_a3b3,
+            a1b2_a1b3_a3b0_a3b1,
+            0x20
+        );
+        // Scheme b) step 1.3
+        let a3b0_a3b1_a3b2_a3b3 = _mm256_permute2f128_pd(
+            a1b0_a1b1_a3b2_a3b3,
+            a1b2_a1b3_a3b0_a3b1,
+            0x13
+        );
+
+        // As above, but for ab[4..7]
+        let a4b0_a4b1_a4b2_a4b3 = _mm256_permute2f128_pd(
+            a4b0_a4b1_a6b2_a6b3,
+            a4b2_a4b3_a6b0_a6b1,
+            0x20
+        );
+
+        let a6b0_a6b1_a6b2_a6b3 = _mm256_permute2f128_pd(
+            a4b0_a4b1_a6b2_a6b3,
+            a4b2_a4b3_a6b0_a6b1,
+            0x13
+        );
+
+        let a5b0_a5b1_a5b2_a5b3 = _mm256_permute2f128_pd(
+            a5b0_a5b1_a7b2_a7b3,
+            a5b2_a5b3_a7b0_a7b1,
+            0x20
+        );
+
+        let a7b0_a7b1_a7b2_a7b3 = _mm256_permute2f128_pd(
+            a5b0_a5b1_a7b2_a7b3,
+            a5b2_a5b3_a7b0_a7b1,
+            0x13
+        );
+
+        ab[0] = a0b0_a0b1_a0b2_a0b3;
+        ab[1] = a1b0_a1b1_a1b2_a1b3;
+        ab[2] = a2b0_a2b1_a2b2_a2b3;
+        ab[3] = a3b0_a3b1_a3b2_a3b3;
+
+        ab[4] = a4b0_a4b1_a4b2_a4b3;
+        ab[5] = a5b0_a5b1_a5b2_a5b3;
+        ab[6] = a6b0_a6b1_a6b2_a6b3;
+        ab[7] = a7b0_a7b1_a7b2_a7b3;
+
+    //  rsc == 1 and general matrix orders
+    } else {
+        // Scheme a), step 0.0
+        // ab[0] = a0 b0 | a1 b1 | a2 b2 | a3 b3
+        // ab[1] = a0 b1 | a1 b0 | a2 b3 | a3 b2
+        let a0b0_a1b0_a2b2_a3b2 = _mm256_blend_pd(ab[0], ab[1], 0b1010);
+        // Scheme a), step 0.1
+        let a0b1_a1b1_a2b3_a3b3 = _mm256_blend_pd(ab[1], ab[0], 0b1010);
+
+        // Scheme a), steps 0.2
+        // ab[2] = a0 b2 | a1 b3 | a2 b0 | a3 b1
+        // ab[3] = a0 b3 | a1 b2 | a2 b1 | a3 b0
+        let a0b2_a1b2_a2b0_a3b0 = _mm256_blend_pd(ab[2], ab[3], 0b1010);
+        // Scheme a), steps 0.3
+        let a0b3_a1b3_a2b1_a3b1 = _mm256_blend_pd(ab[3], ab[2], 0b1010);
+
+        // ab[4] = a4 b0 | a5 b1 | a6 b2 | a7 b3
+        // ab[5] = a4 b1 | a5 b0 | a6 b3 | a7 b2
+        let a4b0_a5b0_a6b2_a7b2 = _mm256_blend_pd(ab[4], ab[5], 0b1010);
+        let a4b1_a5b1_a6b3_a7b3 = _mm256_blend_pd(ab[5], ab[4], 0b1010);
+
+        // ab[6] = a0 b2 | a1 b3 | a2 b0 | a3 b1
+        // ab[7] = a0 b3 | a1 b2 | a2 b1 | a3 b0
+        let a4b2_a5b2_a6b0_a7b0 = _mm256_blend_pd(ab[6], ab[7], 0b1010);
+        let a4b3_a5b3_a6b1_a7b1 = _mm256_blend_pd(ab[7], ab[6], 0b1010);
+
+        // Scheme a), step 1.0
+        let a0b0_a1b0_a2b0_a3b0 = _mm256_permute2f128_pd(
+            a0b0_a1b0_a2b2_a3b2,
+            a0b2_a1b2_a2b0_a3b0,
+            0x30
+        );
+        // Scheme a), step 1.1
+        let a0b2_a1b2_a2b2_a3b2 = _mm256_permute2f128_pd(
+            a0b0_a1b0_a2b2_a3b2,
+            a0b2_a1b2_a2b0_a3b0,
+            0x12,
+        );
+        // Scheme a) step 1.2
+        let a0b1_a1b1_a2b1_a3b1 = _mm256_permute2f128_pd(
+            a0b1_a1b1_a2b3_a3b3,
+            a0b3_a1b3_a2b1_a3b1,
+            0x30
+        );
+        // Scheme a) step 1.3
+        let a0b3_a1b3_a2b3_a3b3 = _mm256_permute2f128_pd(
+            a0b1_a1b1_a2b3_a3b3,
+            a0b3_a1b3_a2b1_a3b1,
+            0x12
+        );
+
+        // As above, but for ab[4..7]
+        let a4b0_a5b0_a6b0_a7b0 = _mm256_permute2f128_pd(
+            a4b0_a5b0_a6b2_a7b2,
+            a4b2_a5b2_a6b0_a7b0,
+            0x30
+        );
+        let a4b2_a5b2_a6b2_a7b2 = _mm256_permute2f128_pd(
+            a4b0_a5b0_a6b2_a7b2,
+            a4b2_a5b2_a6b0_a7b0,
+            0x12,
+        );
+        let a4b1_a5b1_a6b1_a7b1 = _mm256_permute2f128_pd(
+            a4b1_a5b1_a6b3_a7b3,
+            a4b3_a5b3_a6b1_a7b1,
+            0x30
+        );
+        let a4b3_a5b3_a6b3_a7b3 = _mm256_permute2f128_pd(
+            a4b1_a5b1_a6b3_a7b3,
+            a4b3_a5b3_a6b1_a7b1,
+            0x12
+        );
+
+        ab[0] = a0b0_a1b0_a2b0_a3b0;
+        ab[1] = a0b1_a1b1_a2b1_a3b1;
+        ab[2] = a0b2_a1b2_a2b2_a3b2;
+        ab[3] = a0b3_a1b3_a2b3_a3b3;
+
+        ab[4] = a4b0_a5b0_a6b0_a7b0;
+        ab[5] = a4b1_a5b1_a6b1_a7b1;
+        ab[6] = a4b2_a5b2_a6b2_a7b2;
+        ab[7] = a4b3_a5b3_a6b3_a7b3;
+    }
 
     // Compute α (A B)
     // _mm256_set1_pd and _mm256_broadcast_sd seem to achieve the same thing.
@@ -490,6 +608,9 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
         if rsc == 1 {
             loop4!(i, cv[i] = _mm256_loadu_pd(c![0, i]));
             loop4!(i, cv[i + 4] = _mm256_loadu_pd(c![4, i]));
+        } else if csc == 1 {
+            loop4!(i, cv[i] = _mm256_loadu_pd(c![i, 0]));
+            loop4!(i, cv[i+4] = _mm256_loadu_pd(c![i+4, 0]));
         } else {
             loop4!(i, cv[i] = _mm256_setr_pd(
                     *c![0, i],
@@ -514,12 +635,10 @@ unsafe fn kernel_x86_avx(k: usize, alpha: T, a: *const T, b: *const T,
     if rsc == 1 {
         loop4!(i, _mm256_storeu_pd(c![0, i], cv[i]));
         loop4!(i, _mm256_storeu_pd(c![4, i], cv[i + 4]));
+    } else if csc == 1 {
+        loop4!(i, _mm256_storeu_pd(c![i, 0], cv[i]));
+        loop4!(i, _mm256_storeu_pd(c![i+4, 0], cv[i + 4]));
     } else {
-    // TODO: The case csc == 1 should be handled separately by using the scheme b) described above.
-    // By doing a shuffle + permute we can get simd 4-vectors packed along a row making it possible
-    // to store them with one operation (similar to the case rsc == 1, where we use scheme a),
-    // doing a blend + permute and getting a simd 4-vector along a row).
-    // } else {
         // Permute to bring each element in the vector to the front and store
         loop4!(i, {
             // E.g. c_0_lo = a0b0 | a1b0
@@ -602,6 +721,7 @@ mod tests {
             b[i + i * NR] = 1.;
         }
         let mut c = [0.; MR * NR];
+
         unsafe {
             // Column major matrix:
             // row stride of c matrix, rsc = 1

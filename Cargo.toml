@@ -1,7 +1,10 @@
 [package]
 name = "matrixmultiply"
 version = "0.2.1"
-authors = ["bluss"]
+authors = [
+    "bluss",
+    "R. Janis Goldschmidt"
+]
 
 license = "MIT/Apache-2.0"
 

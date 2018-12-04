@@ -1,5 +1,7 @@
+os: linux
 language: rust
-sudo: false
+sudo: yes
+dist: trusty
 
 matrix:
   include:
@@ -22,6 +24,11 @@ matrix:
       env:
         TARGET=x86_64-unknown-linux-gnu
         MMNO_avx=1
+        MMNO_fma=1
+    - rust: nightly
+      env:
+        TARGET=x86_64-unknown-linux-gnu
+        MMNO_fma=1
     - rust: nightly
       env:
         TARGET=aarch64-unknown-linux-gnu

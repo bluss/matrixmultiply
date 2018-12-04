@@ -28,13 +28,18 @@ macro_rules! loop_n {
     ($j:ident, $e:expr) => { loop4!($j, $e) };
 }
 
+
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+struct KernelFma;
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+struct KernelAvx;
+
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 trait DgemmMultiplyAdd {
     unsafe fn multiply_add(__m256d, __m256d, __m256d) -> __m256d;
 }
 
-struct KernelFma;
-struct KernelAvx;
-
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 impl DgemmMultiplyAdd for KernelAvx {
     #[inline(always)]
     unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d {
@@ -42,6 +47,7 @@ impl DgemmMultiplyAdd for KernelAvx {
     }
 }
 
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 impl DgemmMultiplyAdd for KernelFma {
     #[inline(always)]
     unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d {

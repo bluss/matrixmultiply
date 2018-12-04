@@ -33,6 +33,8 @@ macro_rules! loop_n {
 
 impl GemmKernel for Gemm {
     type Elem = T;
+    const MR: usize = MR;
+    const NR: usize = NR;
 
     #[inline(always)]
     fn align_to() -> usize { 32 }

@@ -10,6 +10,11 @@
 pub trait GemmKernel {
     type Elem: Element;
 
+    /// Kernel rows
+    const MR: usize;
+    /// Kernel cols
+    const NR: usize;
+
     /// align inputs to this
     fn align_to() -> usize;
 

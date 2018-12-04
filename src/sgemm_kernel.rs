@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use kernel::GemmKernel;
+use kernel::GemmSelect;
 use archparam;
 
 
@@ -17,9 +18,14 @@ use std::arch::x86_64::*;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 use x86::{FusedMulAdd, AvxMulAdd, SMultiplyAdd};
 
-pub enum Gemm { }
+struct Gemm;
 
-pub type T = f32;
+type T = f32;
+
+#[inline]
+pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
+    return selector.select(Gemm);
+}
 
 const MR: usize = 8;
 const NR: usize = 8;

@@ -17,6 +17,7 @@ use util::round_up_to;
 
 use kernel::GemmKernel;
 use kernel::Element;
+use kernel::GemmSelect;
 use sgemm_kernel;
 use dgemm_kernel;
 use rawpointer::PointerExt;
@@ -45,13 +46,12 @@ pub unsafe fn sgemm(
     beta: f32,
     c: *mut f32, rsc: isize, csc: isize)
 {
-    gemm_loop::<sgemm_kernel::Gemm>(
-        m, k, n,
-        alpha,
-        a, rsa, csa,
-        b, rsb, csb,
-        beta,
-        c, rsc, csc)
+    sgemm_kernel::detect(GemmParameters { m, k, n,
+                alpha,
+                a, rsa, csa,
+                b, rsb, csb,
+                beta,
+                c, rsc, csc})
 }
 
 /// General matrix multiplication (f64)
@@ -78,14 +78,52 @@ pub unsafe fn dgemm(
     beta: f64,
     c: *mut f64, rsc: isize, csc: isize)
 {
-    gemm_loop::<dgemm_kernel::Gemm>(
-        m, k, n,
-        alpha,
-        a, rsa, csa,
-        b, rsb, csb,
-        beta,
-        c, rsc, csc)
+    dgemm_kernel::detect(GemmParameters { m, k, n,
+                alpha,
+                a, rsa, csa,
+                b, rsb, csb,
+                beta,
+                c, rsc, csc})
 }
+
+struct GemmParameters<T> {
+    // Parameters grouped logically in rows
+    m: usize, k: usize, n: usize,
+    alpha: T,
+    a: *const T, rsa: isize, csa: isize,
+    beta: T,
+    b: *const T, rsb: isize, csb: isize,
+    c:   *mut T, rsc: isize, csc: isize,
+}
+
+impl<T> GemmSelect<T> for GemmParameters<T> {
+    fn select<K>(self, _kernel: K)
+       where K: GemmKernel<Elem=T>,
+             T: Element,
+    {
+        // This is where we enter with the configuration specific kernel
+        // We could cache kernel specific function pointers here, if we
+        // needed to support more constly configuration detection.
+        let GemmParameters {
+            m, k, n,
+            alpha,
+            a, rsa, csa,
+            b, rsb, csb,
+            beta,
+            c, rsc, csc} = self;
+
+        unsafe {
+            gemm_loop::<K>(
+                m, k, n,
+                alpha,
+                a, rsa, csa,
+                b, rsb, csb,
+                beta,
+                c, rsc, csc)
+        }
+    }
+}
+
 
 /// Ensure that GemmKernel parameters are supported
 /// (alignment, microkernel size).

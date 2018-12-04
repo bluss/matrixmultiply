@@ -84,3 +84,12 @@ impl Element for f64 {
         *self += alpha * a;
     }
 }
+
+/// Kernel selector
+pub(crate) trait GemmSelect<T> {
+    /// Call `select` with the selected kernel for this configuration
+    fn select<K>(self, kernel: K)
+        where K: GemmKernel<Elem=T>,
+              T: Element;
+}
+

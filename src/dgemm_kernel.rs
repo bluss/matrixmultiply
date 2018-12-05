@@ -48,12 +48,16 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     return selector.select(KernelFallback);
 }
 
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 const MR: usize = 8;
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 const NR: usize = 4;
 
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 macro_rules! loop_m {
     ($i:ident, $e:expr) => { loop8!($i, $e) };
 }
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 macro_rules! loop_n {
     ($j:ident, $e:expr) => { loop4!($j, $e) };
 }
@@ -139,8 +143,8 @@ impl GemmKernel for KernelFma {
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 impl GemmKernel for KernelSse2 {
     type Elem = T;
-    const MR: usize = MR;
-    const NR: usize = NR;
+    const MR: usize = 4;
+    const NR: usize = 4;
 
     #[inline(always)]
     fn align_to() -> usize { 16 }
@@ -177,8 +181,8 @@ impl GemmKernel for KernelSse2 {
 
 impl GemmKernel for KernelFallback {
     type Elem = T;
-    const MR: usize = MR;
-    const NR: usize = NR;
+    const MR: usize = 4;
+    const NR: usize = 4;
 
     #[inline(always)]
     fn align_to() -> usize { 0 }
@@ -815,7 +819,7 @@ unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
 
     // Compute matrix multiplication into ab[i][j]
     unroll_by!(4 => k, {
-        loop_m!(i, loop_n!(j, ab[i][j] += at(a, i) * at(b, j)));
+        loop4!(i, loop4!(j, ab[i][j] += at(a, i) * at(b, j)));
 
         a = a.offset(MR as isize);
         b = b.offset(NR as isize);
@@ -826,7 +830,7 @@ unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // set C = α A B + β C
-    loop_n!(j, loop_m!(i, *c![i, j] = alpha * ab[i][j]));
+    loop4!(j, loop4!(i, *c![i, j] = alpha * ab[i][j]));
 }
 
 #[inline(always)]

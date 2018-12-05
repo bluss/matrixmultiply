@@ -20,6 +20,14 @@ macro_rules! repeat {
     (8 $e:expr) => { $e;$e; $e;$e; $e;$e; $e;$e; };
 }
 
+#[cfg(debug_assertions)]
+macro_rules! loop4 {
+    ($i:ident, $e:expr) => {
+        for $i in 0..4 { $e }
+    }
+}
+
+#[cfg(not(debug_assertions))]
 macro_rules! loop4 {
     ($i:ident, $e:expr) => {{
         let $i = 0; $e;

@@ -58,14 +58,14 @@ Recent Changes
 
   - Improve matrix packing by taking better advantage of contiguous inputs.
 
-    Benchmark improvement: runtime for 64×64 problem where inputs are either
+    Benchmark improvement: execution time for 64×64 problem where inputs are either
     both row major or both column major changed by -5% sgemm and -1% for dgemm.
     (#26)
   
   - In the sgemm avx kernel, handle column major output arrays just like
     it does row major arrays.
 
-    Benchmark improvement: runtime for 32×32 problem where output is column
+    Benchmark improvement: execution time for 32×32 problem where output is column
     major changed by -11%. (#27)
 
 - 0.2.0

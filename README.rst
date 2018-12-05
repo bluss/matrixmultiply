@@ -17,12 +17,6 @@ only one operation: the general matrix-matrix multiplication (“gemm”).
 
 .. _BLIS: https://github.com/flame/blis
 
-Blog posts about this crate:
-
-+ `gemm: a rabbit hole`__
-
-__ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
-
 |build_status|_ |crates|_
 
 .. |build_status| image:: https://travis-ci.org/bluss/matrixmultiply.svg?branch=master
@@ -30,6 +24,32 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 
 .. |crates| image:: https://meritbadge.herokuapp.com/matrixmultiply
 .. _crates: https://crates.io/crates/matrixmultiply
+
+Development Goals
+-----------------
+
+- Code clarity and maintainability
+- Portability
+
+  + Support stable Rust
+  + Start with portable Rust implementations for everything
+
+- Performance
+
+  + Provide target-specific microkernels when it is beneficial
+
+- Testing: Test diverse inputs and test and benchmark all microkernels
+- Small code footprint and fast compilation
+- Non-inlinability: Our public functions are compiled when you compile the
+  crate, and not later than that.
+- We are not reimplementing BLAS.
+
+Blog Posts About This Crate
+---------------------------
+
++ `gemm: a rabbit hole`__
+
+__ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 
 Recent Changes
 --------------

@@ -15,8 +15,9 @@ use aligned_alloc::Alloc;
 use util::range_chunk;
 use util::round_up_to;
 
-use kernel::GemmKernel;
+use kernel::ConstNum;
 use kernel::Element;
+use kernel::GemmKernel;
 use kernel::GemmSelect;
 use sgemm_kernel;
 use dgemm_kernel;
@@ -185,7 +186,7 @@ unsafe fn gemm_loop<K>(
             let a = a.stride_offset(csa, kkc * l4);
 
             // Pack B -> B~
-            pack(kc, nc, K::NR, bpp, b, csb, rsb);
+            pack::<K::NRTy, _>(kc, nc, bpp, b, csb, rsb);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
@@ -194,7 +195,7 @@ unsafe fn gemm_loop<K>(
                 let c = c.stride_offset(rsc, kmc * l3);
 
                 // Pack A -> A~
-                pack(kc, mc, K::MR, app, a, rsa, csa);
+                pack::<K::MRTy, _>(kc, mc, app, a, rsa, csa);
 
                 // First time writing to C, use user's `beta`, else accumulate
                 let betap = if l4 == 0 { beta } else { <_>::one() };
@@ -301,15 +302,18 @@ unsafe fn align_ptr<U>(align_to: usize, mut ptr: *mut U) -> *mut U {
 ///
 /// + kc: length of the micropanel
 /// + mc: number of rows/columns in the matrix to be packed
-/// + mr: kernel rows/columns that we round up to
 /// + pack: packing buffer
 /// + a: matrix,
 /// + rsa: row stride
 /// + csa: column stride
-unsafe fn pack<T>(kc: usize, mc: usize, mr: usize, pack: *mut T,
-                  a: *const T, rsa: isize, csa: isize)
-    where T: Element
+///
+/// + MR: kernel rows/columns that we round up to
+unsafe fn pack<MR, T>(kc: usize, mc: usize, pack: *mut T,
+                      a: *const T, rsa: isize, csa: isize)
+    where T: Element,
+          MR: ConstNum,
 {
+    let mr = MR::VALUE;
     let mut p = 0; // offset into pack
 
     if rsa == 1 {

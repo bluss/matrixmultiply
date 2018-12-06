@@ -8,6 +8,7 @@
 
 use kernel::GemmKernel;
 use kernel::GemmSelect;
+use kernel::{U4, U8};
 use archparam;
 
 
@@ -63,15 +64,11 @@ macro_rules! loop_n { ($j:ident, $e:expr) => { loop8!($j, $e) }; }
 impl GemmKernel for KernelAvx {
     type Elem = T;
 
-    const MR: usize = MR;
-    const NR: usize = NR;
-    #[inline(always)]
-    fn align_to() -> usize { 32 }
+    type MRTy = U8;
+    type NRTy = U8;
 
     #[inline(always)]
-    fn mr() -> usize { MR }
-    #[inline(always)]
-    fn nr() -> usize { NR }
+    fn align_to() -> usize { 32 }
 
     #[inline(always)]
     fn always_masked() -> bool { false }
@@ -99,16 +96,11 @@ impl GemmKernel for KernelAvx {
 impl GemmKernel for KernelFma {
     type Elem = T;
 
-    const MR: usize = KernelAvx::MR;
-    const NR: usize = KernelAvx::NR;
+    type MRTy = <KernelAvx as GemmKernel>::MRTy;
+    type NRTy = <KernelAvx as GemmKernel>::NRTy;
 
     #[inline(always)]
     fn align_to() -> usize { KernelAvx::align_to() }
-
-    #[inline(always)]
-    fn mr() -> usize { MR }
-    #[inline(always)]
-    fn nr() -> usize { NR }
 
     #[inline(always)]
     fn always_masked() -> bool { KernelAvx::always_masked() }
@@ -136,15 +128,11 @@ impl GemmKernel for KernelFma {
 impl GemmKernel for KernelSse2 {
     type Elem = T;
 
-    const MR: usize = KernelFallback::MR;
-    const NR: usize = KernelFallback::NR;
-    #[inline(always)]
-    fn align_to() -> usize { 16 }
+    type MRTy = <KernelFallback as GemmKernel>::MRTy;
+    type NRTy = <KernelFallback as GemmKernel>::NRTy;
 
     #[inline(always)]
-    fn mr() -> usize { Self::MR }
-    #[inline(always)]
-    fn nr() -> usize { Self::NR }
+    fn align_to() -> usize { 16 }
 
     #[inline(always)]
     fn always_masked() -> bool { KernelFallback::always_masked() }
@@ -171,15 +159,11 @@ impl GemmKernel for KernelSse2 {
 impl GemmKernel for KernelFallback {
     type Elem = T;
 
-    const MR: usize = 8;
-    const NR: usize = 4;
-    #[inline(always)]
-    fn align_to() -> usize { 0 }
+    type MRTy = U8;
+    type NRTy = U4;
 
     #[inline(always)]
-    fn mr() -> usize { Self::MR }
-    #[inline(always)]
-    fn nr() -> usize { Self::NR }
+    fn align_to() -> usize { 0 }
 
     #[inline(always)]
     fn always_masked() -> bool { true }

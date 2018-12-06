@@ -133,8 +133,8 @@ impl<T> GemmSelect<T> for GemmParameters<T> {
 fn ensure_kernel_params<K>()
     where K: GemmKernel
 {
-    let mr = K::mr();
-    let nr = K::nr();
+    let mr = K::MR;
+    let nr = K::NR;
     assert!(mr > 0 && mr <= 8);
     assert!(nr > 0 && nr <= 8);
     assert!(mr * nr * size_of::<K::Elem>() <= 8 * 4 * 8);
@@ -185,7 +185,7 @@ unsafe fn gemm_loop<K>(
             let a = a.stride_offset(csa, kkc * l4);
 
             // Pack B -> B~
-            pack(kc, nc, K::nr(), bpp, b, csb, rsb);
+            pack(kc, nc, K::NR, bpp, b, csb, rsb);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
@@ -194,7 +194,7 @@ unsafe fn gemm_loop<K>(
                 let c = c.stride_offset(rsc, kmc * l3);
 
                 // Pack A -> A~
-                pack(kc, mc, K::mr(), app, a, rsa, csa);
+                pack(kc, mc, K::MR, app, a, rsa, csa);
 
                 // First time writing to C, use user's `beta`, else accumulate
                 let betap = if l4 == 0 { beta } else { <_>::one() };
@@ -224,8 +224,8 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
                          c: *mut K::Elem, rsc: isize, csc: isize)
     where K: GemmKernel,
 {
-    let mr = K::mr();
-    let nr = K::nr();
+    let mr = K::MR;
+    let nr = K::NR;
     // make a mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
     assert!(mr * nr * size_of::<K::Elem>() <= 256 && K::align_to() <= 32);
     let mut mask_buf = [0u8; 256 + 31];
@@ -274,8 +274,8 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize) -> (Alloc<K::Elem
     let n = min(n, K::nc());
     // round up k, n to multiples of mr, nr
     // round up to multiple of kc
-    let apack_size = k * round_up_to(m, K::mr());
-    let bpack_size = k * round_up_to(n, K::nr());
+    let apack_size = k * round_up_to(m, K::MR);
+    let bpack_size = k * round_up_to(n, K::NR);
     let nelem = apack_size + bpack_size;
 
     dprint!("packed nelem={}, apack={}, bpack={},
@@ -378,8 +378,8 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
                               mask_buf: *mut T)
     where K: GemmKernel<Elem=T>, T: Element,
 {
-    let mr = K::mr();
-    let nr = K::nr();
+    let mr = K::MR;
+    let nr = K::NR;
     // use column major order for `mask_buf`
     K::kernel(k, T::one(), a, b, T::zero(), mask_buf, 1, mr as isize);
     let mut ab = mask_buf;

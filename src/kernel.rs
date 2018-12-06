@@ -11,17 +11,16 @@ pub trait GemmKernel {
     type Elem: Element;
 
     /// Kernel rows
-    const MR: usize;
+    const MR: usize = Self::MRTy::VALUE;
     /// Kernel cols
-    const NR: usize;
+    const NR: usize = Self::NRTy::VALUE;
+    /// Kernel rows as const num type
+    type MRTy: ConstNum;
+    /// Kernel cols as const num type
+    type NRTy: ConstNum;
 
     /// align inputs to this
     fn align_to() -> usize;
-
-    /// Kernel rows
-    fn mr() -> usize;
-    /// Kernel cols
-    fn nr() -> usize;
 
     /// Whether to always use the masked wrapper around the kernel.
     ///
@@ -93,3 +92,13 @@ pub(crate) trait GemmSelect<T> {
               T: Element;
 }
 
+
+pub trait ConstNum {
+    const VALUE: usize;
+}
+
+pub struct U4;
+pub struct U8;
+
+impl ConstNum for U4 { const VALUE: usize = 4; }
+impl ConstNum for U8 { const VALUE: usize = 8; }

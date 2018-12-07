@@ -29,19 +29,10 @@ Development Goals
 -----------------
 
 - Code clarity and maintainability
-- Portability
-
-  + Support stable Rust
-  + Start with portable Rust implementations for everything
-
-- Performance
-
-  + Provide target-specific microkernels when it is beneficial
-
+- Portability and stable Rust
+- Performance: provide target-specific microkernels when it is beneficial
 - Testing: Test diverse inputs and test and benchmark all microkernels
 - Small code footprint and fast compilation
-- Non-inlinability: Our public functions are compiled when you compile the
-  crate, and not later than that.
 - We are not reimplementing BLAS.
 
 Blog Posts About This Crate

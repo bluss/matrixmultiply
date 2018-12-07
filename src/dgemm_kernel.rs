@@ -49,18 +49,10 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     return selector.select(KernelFallback);
 }
 
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-const MR: usize = 8;
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-const NR: usize = 4;
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 macro_rules! loop_m {
     ($i:ident, $e:expr) => { loop8!($i, $e) };
-}
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-macro_rules! loop_n {
-    ($j:ident, $e:expr) => { loop4!($j, $e) };
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
@@ -235,6 +227,9 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
                              beta: T, c: *mut T, rsc: isize, csc: isize)
     where MA: DMultiplyAdd
 {
+    const MR: usize = KernelAvx::MR;
+    const NR: usize = KernelAvx::NR;
+
     debug_assert_ne!(k, 0);
 
     let mut ab = [_mm256_setzero_pd(); MR];
@@ -865,8 +860,8 @@ mod tests {
 
     #[test]
     fn test_loop_m_n() {
-        let mut m = [[0; NR]; MR];
-        loop_m!(i, loop_n!(j, m[i][j] += 1));
+        let mut m = [[0; 4]; KernelAvx::MR];
+        loop_m!(i, loop4!(j, m[i][j] += 1));
         for arr in &m[..] {
             for elt in &arr[..] {
                 assert_eq!(*elt, 1);

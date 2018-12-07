@@ -29,10 +29,12 @@ impl SMultiplyAdd for FusedMulAdd {
 }
 
 pub(crate) trait DMultiplyAdd {
+    const IS_FUSED: bool;
     unsafe fn multiply_add(__m256d, __m256d, __m256d) -> __m256d;
 }
 
 impl DMultiplyAdd for AvxMulAdd {
+    const IS_FUSED: bool = false;
     #[inline(always)]
     unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d {
         _mm256_add_pd(_mm256_mul_pd(a, b), c)
@@ -40,6 +42,7 @@ impl DMultiplyAdd for AvxMulAdd {
 }
 
 impl DMultiplyAdd for FusedMulAdd {
+    const IS_FUSED: bool = true;
     #[inline(always)]
     unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d {
         _mm256_fmadd_pd(a, b, c)

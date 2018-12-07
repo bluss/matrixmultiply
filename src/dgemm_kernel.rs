@@ -126,9 +126,9 @@ unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
 
 #[inline(always)]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-unsafe fn kernel_x86_avx<DMA>(k: usize, alpha: T, a: *const T, b: *const T,
-                         beta: T, c: *mut T, rsc: isize, csc: isize)
-    where DMA: DMultiplyAdd
+unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
+                             beta: T, c: *mut T, rsc: isize, csc: isize)
+    where MA: DMultiplyAdd
 {
     debug_assert_ne!(k, 0);
 
@@ -216,15 +216,15 @@ unsafe fn kernel_x86_avx<DMA>(k: usize, alpha: T, a: *const T, b: *const T,
         // ab_7 || a4 b3 | a5 b2 | a6 b1 | a7 b0
 
         // Add and multiply in one go
-        ab[0] = DMA::multiply_add(a_0123, b_0123, ab[0]);
-        ab[1] = DMA::multiply_add(a_0123, b_1032, ab[1]);
-        ab[2] = DMA::multiply_add(a_0123, b_2301, ab[2]);
-        ab[3] = DMA::multiply_add(a_0123, b_3210, ab[3]);
+        ab[0] = MA::multiply_add(a_0123, b_0123, ab[0]);
+        ab[1] = MA::multiply_add(a_0123, b_1032, ab[1]);
+        ab[2] = MA::multiply_add(a_0123, b_2301, ab[2]);
+        ab[3] = MA::multiply_add(a_0123, b_3210, ab[3]);
 
-        ab[4] = DMA::multiply_add(a_4567, b_0123, ab[4]);
-        ab[5] = DMA::multiply_add(a_4567, b_1032, ab[5]);
-        ab[6] = DMA::multiply_add(a_4567, b_2301, ab[6]);
-        ab[7] = DMA::multiply_add(a_4567, b_3210, ab[7]);
+        ab[4] = MA::multiply_add(a_4567, b_0123, ab[4]);
+        ab[5] = MA::multiply_add(a_4567, b_1032, ab[5]);
+        ab[6] = MA::multiply_add(a_4567, b_2301, ab[6]);
+        ab[7] = MA::multiply_add(a_4567, b_3210, ab[7]);
 
         if !is_last {
             a = a.add(MR);
@@ -603,7 +603,13 @@ unsafe fn kernel_x86_avx<DMA>(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // Compute α (A B)
-    // _mm256_set1_pd and _mm256_broadcast_sd seem to achieve the same thing.
+    // Compute here if we don't have fma, else pick up α further down
+
+    let alphav = _mm256_broadcast_sd(&alpha);
+    if !MA::IS_FUSED {
+        loop_m!(i, ab[i] = _mm256_mul_pd(alphav, ab[i]));
+    }
+
     macro_rules! c {
         ($i:expr, $j:expr) =>
             (c.offset(rsc * $i as isize + csc * $j as isize));
@@ -641,8 +647,11 @@ unsafe fn kernel_x86_avx<DMA>(k: usize, alpha: T, a: *const T, b: *const T,
     }
 
     // Compute (α A B) + (β C)
-    let alpha_v = _mm256_broadcast_sd(&alpha);
-    loop_m!(i, cv[i] = DMA::multiply_add(alpha_v, ab[i], cv[i]));
+    if !MA::IS_FUSED {
+        loop_m!(i, cv[i] = _mm256_add_pd(cv[i], ab[i]));
+    } else {
+        loop_m!(i, cv[i] = MA::multiply_add(alphav, ab[i], cv[i]));
+    }
 
     if rsc == 1 {
         loop4!(i, _mm256_storeu_pd(c![0, i], cv[i]));

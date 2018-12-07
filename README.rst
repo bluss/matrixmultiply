@@ -45,6 +45,35 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.2.2
+
+  - New dgemm avx and fma kernels implemented by R. Janis Goldschmidt
+    (@SuperFluffy). With fast cases for both row and column major output.
+
+    Benchmark improvements: Using fma instructions reduces execution time on
+    dgemm benchmarks by 25-35% compared with the avx kernel, see issue `#35`_
+
+    Using the avx dgemm kernel reduces execution time on dgemm benchmarks by
+    5-7% compared with the previous version's autovectorized kernel.
+
+  - New fma adaption of the sgemm avx kernel by R. Janis Goldschmidt
+    (@SuperFluffy).
+
+    Benchmark improvement: Using fma instructions reduces execution time on
+    sgemm benchmarks by 10-15% compared with the avx kernel, see issue `#35`_
+
+  - More flexible kernel selection allows kernels to individually set all
+    their parameters, ensures the fallback (plain Rust) kernels can be tuned
+    for performance as well, and moves feature detection out of the gemm loop.
+
+    Benchmark improvement: Reduces execution time on various benchmarks
+    by 1-2% in the avx kernels, see `#37`_.
+
+  - Improved testing to cover input/output strides of more diversity.
+
+.. _#35: https://github.com/bluss/matrixmultiply/issues/35
+.. _#37: https://github.com/bluss/matrixmultiply/issues/37
+
 - 0.2.1
 
   - Improve matrix packing by taking better advantage of contiguous inputs.

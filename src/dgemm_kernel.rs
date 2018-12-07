@@ -98,7 +98,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
 }
 
 #[inline]
-#[target_feature(enable="avx")]
+#[target_feature(enable="fma")]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 unsafe fn kernel_target_fma(k: usize, alpha: T, a: *const T, b: *const T,
                          beta: T, c: *mut T, rsc: isize, csc: isize)

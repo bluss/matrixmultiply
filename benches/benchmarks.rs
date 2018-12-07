@@ -1,6 +1,7 @@
 extern crate matrixmultiply;
 pub use matrixmultiply::sgemm;
 pub use matrixmultiply::dgemm;
+pub use matrixmultiply::igemm;
 
 #[macro_use]
 extern crate bencher;
@@ -10,7 +11,14 @@ extern crate bencher;
 // by flop / s = 2 M N K / time
 
 
-benchmark_main!(mat_mul_f32, mat_mul_f64, layout_f32_032, layout_f64_032);
+benchmark_main!(
+    mat_mul_f32,
+    mat_mul_f64,
+    mat_mul_i32,
+    layout_f32_032,
+    layout_f64_032,
+    layout_i32_032
+);
 
 macro_rules! mat_mul {
     ($modname:ident, $gemm:ident, $(($name:ident, $m:expr, $n:expr, $k:expr))+) => {
@@ -20,17 +28,17 @@ macro_rules! mat_mul {
             $(
             pub fn $name(bench: &mut Bencher)
             {
-                let a = vec![0.; $m * $n]; 
-                let b = vec![0.; $n * $k];
-                let mut c = vec![0.; $m * $k];
+                let a = vec![0 as _; $m * $n]; 
+                let b = vec![0 as _; $n * $k];
+                let mut c = vec![0 as _; $m * $k];
                 bench.iter(|| {
                     unsafe {
                         $gemm(
                             $m, $n, $k,
-                            1.,
+                            1 as _,
                             a.as_ptr(), $n, 1,
                             b.as_ptr(), $k, 1,
-                            0.,
+                            0 as _,
                             c.as_mut_ptr(), $k, 1,
                             )
                     }
@@ -106,9 +114,9 @@ macro_rules! gemm_layout {
 
             fn base(bench: &mut Bencher, al: Layout, bl: Layout, cl: Layout)
             {
-                let a = vec![0.; $m * $m]; 
-                let b = vec![0.; $m * $m];
-                let mut c = vec![0.; $m * $m];
+                let a = vec![0 as _; $m * $m]; 
+                let b = vec![0 as _; $m * $m];
+                let mut c = vec![0 as _; $m * $m];
                 let (rsa, csa) = al.strides($m, 1);
                 let (rsb, csb) = bl.strides($m, 1);
                 let (rsc, csc) = cl.strides($m, 1);
@@ -116,10 +124,10 @@ macro_rules! gemm_layout {
                     unsafe {
                         $gemm(
                             $m, $m, $m,
-                            1.,
+                            1 as _,
                             a.as_ptr(), rsa, csa,
                             b.as_ptr(), rsb, csb,
-                            0.,
+                            0 as _,
                             c.as_mut_ptr(), rsc, csc,
                             )
                     }
@@ -154,6 +162,10 @@ gemm_layout!{layout_f32_032, sgemm,
 }
 
 gemm_layout!{layout_f64_032, dgemm,
+    (m032, 32)
+}
+
+gemm_layout!{layout_i32_032, igemm,
     (m032, 32)
 }
 
@@ -218,4 +230,23 @@ ref_mat_mul!{ref_mat_mul_f32, f32,
     (m016, 16, 16, 16)
     (m032, 32, 32, 32)
     (m064, 64, 64, 64)
+}
+
+mat_mul!{mat_mul_i32, igemm,
+    (m004, 4, 4, 4)
+    (m006, 6, 6, 6)
+    (m008, 8, 8, 8)
+    (m012, 12, 12, 12)
+    (m016, 16, 16, 16)
+    (m032, 32, 32, 32)
+    (m064, 64, 64, 64)
+    (m127, 127, 127, 127)
+    /*
+    (m256, 256, 256, 256)
+    (m512, 512, 512, 512)
+    (mix16x4, 32, 4, 32)
+    (mix32x2, 32, 2, 32)
+    (mix97, 97, 97, 125)
+    (mix128x10000x128, 128, 10000, 128)
+    */
 }

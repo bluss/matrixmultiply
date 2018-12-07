@@ -30,9 +30,9 @@ macro_rules! loop_n {
 
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct KernelFma;
+struct FusedMulAdd;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct KernelAvx;
+struct AvxMulAdd;
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 trait DgemmMultiplyAdd {
@@ -40,7 +40,7 @@ trait DgemmMultiplyAdd {
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl DgemmMultiplyAdd for KernelAvx {
+impl DgemmMultiplyAdd for AvxMulAdd {
     #[inline(always)]
     unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d {
         _mm256_add_pd(_mm256_mul_pd(a, b), c)
@@ -48,7 +48,7 @@ impl DgemmMultiplyAdd for KernelAvx {
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl DgemmMultiplyAdd for KernelFma {
+impl DgemmMultiplyAdd for FusedMulAdd {
     #[inline(always)]
     unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d {
         _mm256_fmadd_pd(a, b, c)
@@ -127,7 +127,7 @@ pub unsafe fn kernel(k: usize, alpha: T, a: *const T, b: *const T,
 unsafe fn kernel_target_fma(k: usize, alpha: T, a: *const T, b: *const T,
                          beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    kernel_x86_avx::<KernelFma>(k, alpha, a, b, beta, c, rsc, csc)
+    kernel_x86_avx::<FusedMulAdd>(k, alpha, a, b, beta, c, rsc, csc)
 }
 
 #[inline]
@@ -136,7 +136,7 @@ unsafe fn kernel_target_fma(k: usize, alpha: T, a: *const T, b: *const T,
 unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
                          beta: T, c: *mut T, rsc: isize, csc: isize)
 {
-    kernel_x86_avx::<KernelAvx>(k, alpha, a, b, beta, c, rsc, csc)
+    kernel_x86_avx::<AvxMulAdd>(k, alpha, a, b, beta, c, rsc, csc)
 }
 
 #[inline]

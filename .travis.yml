@@ -21,7 +21,6 @@ matrix:
       env:
         TARGET=x86_64-unknown-linux-gnu
         MMTEST_FEATURE=fma
-        MMTEST_ENSUREFEATURE=1
     - rust: nightly
       env:
         TARGET=x86_64-unknown-linux-gnu

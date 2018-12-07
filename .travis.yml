@@ -49,6 +49,7 @@ install:
 # the main build
 script:
   - |
+      rustc --print cfg -Ctarget-cpu=native &&
       cargo build --target=$TARGET &&
       ([ -n "$BUILD_ONLY" ] || (
       cargo test --target=$TARGET &&

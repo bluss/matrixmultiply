@@ -54,18 +54,20 @@
 
 extern crate rawpointer;
 
-#[macro_use] mod archmacros_x86;
 #[macro_use] mod debugmacros;
 #[macro_use] mod loopmacros;
 mod archparam;
 mod kernel;
 mod gemm;
-mod sgemm_kernel;
-mod dgemm_kernel;
+
 mod util;
 mod aligned_alloc;
+
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+#[macro_use]
 mod x86;
+mod sgemm_kernel;
+mod dgemm_kernel;
 
 pub use gemm::sgemm;
 pub use gemm::dgemm;

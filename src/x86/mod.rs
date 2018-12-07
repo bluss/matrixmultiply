@@ -4,6 +4,9 @@ use std::arch::x86::*;
 #[cfg(target_arch="x86_64")]
 use std::arch::x86_64::*;
 
+#[macro_use]
+mod macros;
+
 pub(crate) struct FusedMulAdd;
 pub(crate) struct AvxMulAdd;
 

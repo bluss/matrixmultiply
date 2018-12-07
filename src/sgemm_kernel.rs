@@ -14,6 +14,8 @@ use archparam;
 use std::arch::x86::*;
 #[cfg(target_arch="x86_64")]
 use std::arch::x86_64::*;
+#[cfg(target_arch="x86_64")]
+use x86::{FusedMulAdd, AvxMulAdd, SMultiplyAdd};
 
 pub enum Gemm { }
 
@@ -24,35 +26,6 @@ const NR: usize = 8;
 
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop8!($i, $e) }; }
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop8!($j, $e) }; }
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct FusedMulAdd;
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct AvxMulAdd;
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-trait SMultiplyAdd {
-    const IS_FUSED: bool;
-    unsafe fn multiply_add(__m256, __m256, __m256) -> __m256;
-}
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl SMultiplyAdd for AvxMulAdd {
-    const IS_FUSED: bool = false;
-    #[inline(always)]
-    unsafe fn multiply_add(a: __m256, b: __m256, c: __m256) -> __m256 {
-        _mm256_add_ps(_mm256_mul_ps(a, b), c)
-    }
-}
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl SMultiplyAdd for FusedMulAdd {
-    const IS_FUSED: bool = false;
-    #[inline(always)]
-    unsafe fn multiply_add(a: __m256, b: __m256, c: __m256) -> __m256 {
-        _mm256_fmadd_ps(a, b, c)
-    }
-}
 
 impl GemmKernel for Gemm {
     type Elem = T;

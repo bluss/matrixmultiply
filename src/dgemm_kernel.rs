@@ -13,6 +13,8 @@ use archparam;
 use std::arch::x86::*;
 #[cfg(target_arch="x86_64")]
 use std::arch::x86_64::*;
+#[cfg(target_arch="x86_64")]
+use x86::{FusedMulAdd, AvxMulAdd, DMultiplyAdd};
 
 pub enum Gemm { }
 
@@ -28,32 +30,6 @@ macro_rules! loop_n {
     ($j:ident, $e:expr) => { loop4!($j, $e) };
 }
 
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct FusedMulAdd;
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct AvxMulAdd;
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-trait DgemmMultiplyAdd {
-    unsafe fn multiply_add(__m256d, __m256d, __m256d) -> __m256d;
-}
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl DgemmMultiplyAdd for AvxMulAdd {
-    #[inline(always)]
-    unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d {
-        _mm256_add_pd(_mm256_mul_pd(a, b), c)
-    }
-}
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl DgemmMultiplyAdd for FusedMulAdd {
-    #[inline(always)]
-    unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d {
-        _mm256_fmadd_pd(a, b, c)
-    }
-}
 
 impl GemmKernel for Gemm {
     type Elem = T;
@@ -152,7 +128,7 @@ unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 unsafe fn kernel_x86_avx<DMA>(k: usize, alpha: T, a: *const T, b: *const T,
                          beta: T, c: *mut T, rsc: isize, csc: isize)
-    where DMA: DgemmMultiplyAdd
+    where DMA: DMultiplyAdd
 {
     debug_assert_ne!(k, 0);
 

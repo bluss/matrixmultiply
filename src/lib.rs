@@ -64,6 +64,8 @@ mod sgemm_kernel;
 mod dgemm_kernel;
 mod util;
 mod aligned_alloc;
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+mod x86;
 
 pub use gemm::sgemm;
 pub use gemm::dgemm;

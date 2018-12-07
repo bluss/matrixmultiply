@@ -20,15 +20,17 @@ matrix:
     - rust: nightly
       env:
         TARGET=x86_64-unknown-linux-gnu
+        MMTEST_FEATURE=fma
     - rust: nightly
       env:
         TARGET=x86_64-unknown-linux-gnu
-        MMNO_avx=1
-        MMNO_fma=1
+        MMTEST_FEATURE=sse2
+        MMTEST_ENSUREFEATURE=1
     - rust: nightly
       env:
         TARGET=x86_64-unknown-linux-gnu
-        MMNO_fma=1
+        MMTEST_FEATURE=avx
+        MMTEST_ENSUREFEATURE=1
     - rust: nightly
       env:
         TARGET=aarch64-unknown-linux-gnu

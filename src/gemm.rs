@@ -173,13 +173,13 @@ unsafe fn gemm_loop<K>(
     let app = packing_buffer.ptr_mut();
     let bpp = app.add(bp_offset);
 
-    // LOOP 5: split n into nc parts
+    // LOOP 5: split n into nc parts (B, C)
     for (l5, nc) in range_chunk(n, knc) {
         dprint!("LOOP 5, {}, nc={}", l5, nc);
         let b = b.stride_offset(csb, knc * l5);
         let c = c.stride_offset(csc, knc * l5);
 
-        // LOOP 4: split k in kc parts
+        // LOOP 4: split k in kc parts (A, B)
         for (l4, kc) in range_chunk(k, kkc) {
             dprint!("LOOP 4, {}, kc={}", l4, kc);
             let b = b.stride_offset(rsb, kkc * l4);
@@ -188,7 +188,7 @@ unsafe fn gemm_loop<K>(
             // Pack B -> B~
             pack::<K::NRTy, _>(kc, nc, bpp, b, csb, rsb);
 
-            // LOOP 3: split m into mc parts
+            // LOOP 3: split m into mc parts (A, C)
             for (l3, mc) in range_chunk(m, kmc) {
                 dprint!("LOOP 3, {}, mc={}", l3, mc);
                 let a = a.stride_offset(rsa, kmc * l3);
@@ -232,12 +232,12 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     let mut mask_buf = [0u8; 256 + 31];
     let mask_ptr = align_ptr(32, mask_buf.as_mut_ptr()) as *mut K::Elem;
 
-    // LOOP 2: through micropanels in packed `b`
+    // LOOP 2: through micropanels in packed `b` (B~, C)
     for (l2, nr_) in range_chunk(nc, nr) {
         let bpp = bpp.stride_offset(1, kc * nr * l2);
         let c = c.stride_offset(csc, nr * l2);
 
-        // LOOP 1: through micropanels in packed `a` while `b` is constant
+        // LOOP 1: through micropanels in packed `a` while `b` is constant (A~, C)
         for (l1, mr_) in range_chunk(mc, mr) {
             let app = app.stride_offset(1, kc * mr * l1);
             let c = c.stride_offset(rsc, mr * l1);

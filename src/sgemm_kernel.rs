@@ -473,7 +473,6 @@ unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
     let mut ab: [[T; NR]; MR] = [[0.; NR]; MR];
     let mut a = a;
     let mut b = b;
-    debug_assert_eq!(alpha, 1., "Alpha must be 1 or is not masked");
     debug_assert_eq!(beta, 0., "Beta must be 0 or is not masked");
 
     // Compute A B into ab[i][j]
@@ -488,8 +487,8 @@ unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
     }
 
-    // set C = A B
-    loop4!(j, loop8!(i, *c![i, j] = ab[i][j]));
+    // set C = α A B
+    loop4!(j, loop8!(i, *c![i, j] = alpha * ab[i][j]));
 }
 
 #[inline(always)]

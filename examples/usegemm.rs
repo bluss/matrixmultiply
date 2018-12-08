@@ -1,3 +1,10 @@
+
+
+// Example of using sgemm/dgemm from matrixmultiply,
+// we show that we can multiply matrices of differing strides.
+//
+// Jump down to the next place where it says EXAMPLE.
+
 extern crate itertools;
 extern crate matrixmultiply;
 
@@ -82,239 +89,17 @@ impl Gemm for f64 {
     }
 }
 
-#[test]
-fn test_sgemm() {
-    test_gemm::<f32>();
-}
-#[test]
-fn test_dgemm() {
-    test_gemm::<f64>();
-}
-#[test]
-fn test_sgemm_strides() {
+fn main() {
     test_gemm_strides::<f32>();
-}
-#[test]
-fn test_dgemm_strides() {
     test_gemm_strides::<f64>();
 }
 
 fn test_gemm_strides<F>() where F: Gemm + Float {
-    for n in 0..20 {
+    let test_sizes = [77];
+    for &n in &test_sizes {
         test_strides::<F>(n, n, n);
     }
-    for n in (3..12).map(|x| x * 7) {
-        test_strides::<F>(n, n, n);
-    }
-
-    test_strides::<F>(8, 12, 16);
-    test_strides::<F>(8, 0, 10);
 }
-
-fn test_gemm<F>() where F: Gemm + Float {
-    test_mul_with_id::<F>(4, 4, true);
-    test_mul_with_id::<F>(8, 8, true);
-    test_mul_with_id::<F>(32, 32, false);
-    test_mul_with_id::<F>(128, 128, false);
-    test_mul_with_id::<F>(17, 128, false);
-    for i in 0..12 {
-        for j in 0..12 {
-            test_mul_with_id::<F>(i, j, true);
-        }
-    }
-    /*
-    */
-    test_mul_with_id::<F>(17, 257, false);
-    test_mul_with_id::<F>(24, 512, false);
-    for i in 0..10 {
-        for j in 0..10 {
-            test_mul_with_id::<F>(i * 4, j * 4, true);
-        }
-    }
-    test_mul_with_id::<F>(266, 265, false);
-    test_mul_id_with::<F>(4, 4, true);
-    for i in 0..12 {
-        for j in 0..12 {
-            test_mul_id_with::<F>(i, j, true);
-        }
-    }
-    test_mul_id_with::<F>(266, 265, false);
-    test_scale::<F>(0, 4, 4, true);
-    test_scale::<F>(4, 0, 4, true);
-    test_scale::<F>(4, 4, 0, true);
-    test_scale::<F>(4, 4, 4, true);
-    test_scale::<F>(19, 20, 16, true);
-    test_scale::<F>(150, 140, 128, false);
-
-}
-
-/// multiply a M x N matrix with an N x N id matrix
-#[cfg(test)]
-fn test_mul_with_id<F>(m: usize, n: usize, small: bool)
-    where F: Gemm + Float
-{
-    let (m, k, n) = (m, n, n);
-    let mut a = vec![F::zero(); m * k]; 
-    let mut b = vec![F::zero(); k * n];
-    let mut c = vec![F::zero(); m * n];
-    println!("test matrix with id input M={}, N={}", m, n);
-
-    for (i, elt) in a.iter_mut().enumerate() {
-        *elt = F::from(i as i64);
-    }
-    for i in 0..k {
-        b[i + i * k] = F::one();
-    }
-
-    unsafe {
-        F::gemm(
-            m, k, n,
-            F::one(),
-            a.as_ptr(), k as isize, 1,
-            b.as_ptr(), n as isize, 1,
-            F::zero(),
-            c.as_mut_ptr(), n as isize, 1,
-            )
-    }
-    for (i, (x, y)) in a.iter().zip(&c).enumerate() {
-        if x != y {
-            if k != 0 && n != 0 && small {
-                for row in a.chunks(k) {
-                    println!("{:?}", row);
-                }
-                for row in b.chunks(n) {
-                    println!("{:?}", row);
-                }
-                for row in c.chunks(n) {
-                    println!("{:?}", row);
-                }
-            }
-            panic!("mismatch at index={}, x: {}, y: {} (matrix input M={}, N={})",
-                   i, x, y, m, n);
-        }
-    }
-    println!("passed matrix with id input M={}, N={}", m, n);
-}
-
-/// multiply a K x K id matrix with an K x N matrix
-#[cfg(test)]
-fn test_mul_id_with<F>(k: usize, n: usize, small: bool) 
-    where F: Gemm + Float
-{
-    let (m, k, n) = (k, k, n);
-    let mut a = vec![F::zero(); m * k]; 
-    let mut b = vec![F::zero(); k * n];
-    let mut c = vec![F::zero(); m * n];
-
-    for i in 0..k {
-        a[i + i * k] = F::one();
-    }
-    for (i, elt) in b.iter_mut().enumerate() {
-        *elt = F::from(i as i64);
-    }
-
-    unsafe {
-        F::gemm(
-            m, k, n,
-            F::one(),
-            a.as_ptr(), k as isize, 1,
-            b.as_ptr(), n as isize, 1,
-            F::zero(),
-            c.as_mut_ptr(), n as isize, 1,
-            )
-    }
-    for (i, (x, y)) in b.iter().zip(&c).enumerate() {
-        if x != y {
-            if k != 0 && n != 0 && small {
-                for row in a.chunks(k) {
-                    println!("{:?}", row);
-                }
-                for row in b.chunks(n) {
-                    println!("{:?}", row);
-                }
-                for row in c.chunks(n) {
-                    println!("{:?}", row);
-                }
-            }
-            panic!("mismatch at index={}, x: {}, y: {} (matrix input M={}, N={})",
-                   i, x, y, m, n);
-        }
-    }
-    println!("passed id with matrix input K={}, N={}", k, n);
-}
-
-#[cfg(test)]
-fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
-    where F: Gemm + Float
-{
-    let (m, k, n) = (m, k, n);
-    let mut a = vec![F::zero(); m * k]; 
-    let mut b = vec![F::zero(); k * n];
-    let mut c1 = vec![F::one(); m * n];
-    let mut c2 = vec![F::nan(); m * n];
-    // init c2 with NaN to test the overwriting behavior when beta = 0.
-
-    for (i, elt) in a.iter_mut().enumerate() {
-        *elt = F::from(i as i64);
-    }
-    for (i, elt) in b.iter_mut().enumerate() {
-        *elt = F::from(i as i64);
-    }
-
-    unsafe {
-        // C1 = 3 A B
-        F::gemm(
-            m, k, n,
-            F::from(3),
-            a.as_ptr(), k as isize, 1,
-            b.as_ptr(), n as isize, 1,
-            F::zero(),
-            c1.as_mut_ptr(), n as isize, 1,
-        );
-
-        // C2 = A B 
-        F::gemm(
-            m, k, n,
-            F::one(),
-            a.as_ptr(), k as isize, 1,
-            b.as_ptr(), n as isize, 1,
-            F::zero(),
-            c2.as_mut_ptr(), n as isize, 1,
-        );
-        // C2 = A B + 2 C2
-        F::gemm(
-            m, k, n,
-            F::one(),
-            a.as_ptr(), k as isize, 1,
-            b.as_ptr(), n as isize, 1,
-            F::from(2),
-            c2.as_mut_ptr(), n as isize, 1,
-        );
-    }
-    for (i, (x, y)) in c1.iter().zip(&c2).enumerate() {
-        if x != y || x.is_nan() || y.is_nan() {
-            if k != 0 && n != 0 && small {
-                for row in a.chunks(k) {
-                    println!("{:?}", row);
-                }
-                for row in b.chunks(n) {
-                    println!("{:?}", row);
-                }
-                for row in c1.chunks(n) {
-                    println!("{:?}", row);
-                }
-                for row in c2.chunks(n) {
-                    println!("{:?}", row);
-                }
-            }
-            panic!("mismatch at index={}, x: {}, y: {} (matrix input M={}, N={})",
-                   i, x, y, m, n);
-        }
-    }
-    println!("passed matrix with id input M={}, N={}", m, n);
-}
-
-
 
 //
 // Custom stride tests
@@ -338,13 +123,12 @@ impl Default for Layout {
 }
 
 
-#[cfg(test)]
 fn test_strides<F>(m: usize, k: usize, n: usize)
     where F: Gemm + Float
 {
     let (m, k, n) = (m, k, n);
 
-    let stride_multipliers = vec![[1, 2], [2, 2], [2, 3], [1, 1], [2, 2], [4, 1], [3, 4]];
+    let stride_multipliers = vec![[1, 1], [1, 1], [1, 1], [1, 1], [2, 2]];
     let mut multipliers_iter = cloned(&stride_multipliers).cycle();
 
     let layout_species = [C, F];
@@ -406,10 +190,10 @@ fn test_strides_inner<F>(m: usize, k: usize, n: usize,
     }
 
     unsafe {
-        // Compute the same result in C1 and C2 in two different ways.
+        // EXAMPLE: Compute the same result in C1 and C2 in two different ways.
         // We only use whole integer values in the low range of floats here,
         // so we have no loss of precision.
-        //
+
         // C1 = A B
         F::gemm(
             m, k, n,

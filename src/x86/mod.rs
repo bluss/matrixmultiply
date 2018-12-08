@@ -24,7 +24,7 @@ impl SMultiplyAdd for AvxMulAdd {
 }
 
 impl SMultiplyAdd for FusedMulAdd {
-    const IS_FUSED: bool = false;
+    const IS_FUSED: bool = true;
     #[inline(always)]
     unsafe fn multiply_add(a: __m256, b: __m256, c: __m256) -> __m256 {
         _mm256_fmadd_ps(a, b, c)

@@ -23,8 +23,6 @@ pub trait GemmKernel {
     fn align_to() -> usize;
 
     /// Whether to always use the masked wrapper around the kernel.
-    ///
-    /// If masked, the kernel is always called with α=1, β=0
     fn always_masked() -> bool;
 
     fn nc() -> usize;
@@ -35,14 +33,21 @@ pub trait GemmKernel {
     ///
     /// This does the matrix multiplication:
     ///
-    /// C := alpha * A * B + beta * C
+    /// C ← α A B + β C
     ///
     /// + `k`: length of data in a, b
     /// + a, b are packed
     /// + c has general strides
     /// + rsc: row stride of c
     /// + csc: col stride of c
-    /// + if `beta` is `0.`, then c does not need to be initialized
+    /// + `alpha`: scaling factor for A B product
+    /// + `beta`: scaling factor for c.
+    ///   Note: if `beta` is `0.`, the kernel should not (and must not)
+    ///   read from c, its value is to be treated as if it was zero.
+    ///
+    /// When masked, the kernel is always called with β=0 but α is passed
+    /// as usual. (This is only useful information if you return `true` from
+    /// `always_masked`.)
     unsafe fn kernel(
         k: usize,
         alpha: Self::Elem,

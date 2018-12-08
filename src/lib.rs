@@ -45,6 +45,19 @@
 //! Stides can be negative or even zero, but for a mutable matrix elements
 //! may not alias each other.
 //!
+//! ## Portability and Performance
+//!
+//! - The default kernels are written in portable Rust and available
+//!   on all targets. These may depend on autovectorization to perform well.
+//!
+//! - *x86* and *x86-64* features can be detected at runtime by default or
+//!   compile time (if enabled), and the crate following kernel variants are
+//!   implemented:
+//!
+//!   - `fma`
+//!   - `avx`
+//!   - `sse2`
+//!
 //! ## Other Notes
 //!
 //! The functions in this crate are thread safe, as long as the destination

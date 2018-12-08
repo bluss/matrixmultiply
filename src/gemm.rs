@@ -396,11 +396,11 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
                 let cptr = c.stride_offset(rsc, i)
                             .stride_offset(csc, j);
                 if beta.is_zero() {
-                    *cptr = T::zero(); // initialize C
+                    *cptr = *ab; // initialize
                 } else {
                     *cptr *= beta;
+                    *cptr += *ab;
                 }
-                *cptr += *ab;
             }
             ab.inc();
         }

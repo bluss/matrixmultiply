@@ -26,7 +26,8 @@ macro_rules! loop_m { ($i:ident, $e:expr) => { loop8!($i, $e) }; }
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop8!($j, $e) }; }
 
 impl GemmKernel for Gemm {
-    type Elem = T;
+    type ElemIn = T;
+    type ElemOut = T;
 
     #[inline(always)]
     fn align_to() -> usize { 32 }

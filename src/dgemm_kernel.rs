@@ -24,7 +24,8 @@ macro_rules! loop_n {
 }
 
 impl GemmKernel for Gemm {
-    type Elem = T;
+    type ElemIn = T;
+    type ElemOut = T;
 
     #[inline(always)]
     fn align_to() -> usize { 0 }

@@ -1,7 +1,7 @@
 extern crate itertools;
 extern crate matrixmultiply;
 
-use matrixmultiply::{sgemm, dgemm, igemm};
+use matrixmultiply::{sgemm, dgemm}; //, igemm};
 
 use itertools::Itertools;
 use itertools::{
@@ -71,23 +71,23 @@ impl Gemm for f32 {
     }
 }
 
-impl Gemm for i32 {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        igemm(
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
-    }
-}
+// impl Gemm for i32 {
+//     unsafe fn gemm(
+//         m: usize, k: usize, n: usize,
+//         alpha: Self,
+//         a: *const Self, rsa: isize, csa: isize,
+//         b: *const Self, rsb: isize, csb: isize,
+//         beta: Self,
+//         c: *mut Self, rsc: isize, csc: isize) {
+//         igemm(
+//             m, k, n,
+//             alpha,
+//             a, rsa, csa,
+//             b, rsb, csb,
+//             beta,
+//             c, rsc, csc)
+//     }
+// }
 
 impl Gemm for f64 {
     unsafe fn gemm(
@@ -124,10 +124,10 @@ fn test_dgemm_strides() {
     test_gemm_strides::<f64>();
 }
 
-#[test]
-fn test_i32gemm_strides() {
-    test_gemm_strides::<i32>();
-}
+// #[test]
+// fn test_i32gemm_strides() {
+//     test_gemm_strides::<i32>();
+// }
 
 fn test_gemm_strides<F>() where F: Gemm + Float {
     for n in 0..10 {

@@ -398,9 +398,9 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
                 if beta.is_zero() {
                     *cptr = T::zero(); // initialize C
                 } else {
-                    (*cptr).scale_by(beta);
+                    *cptr *= beta;
                 }
-                (*cptr).add(*ab);
+                *cptr += *ab;
             }
             ab.inc();
         }
@@ -419,7 +419,7 @@ unsafe fn c_to_beta_c<T>(m: usize, n: usize, beta: T,
             if beta.is_zero() {
                 *cptr = T::zero(); // initialize C
             } else {
-                (*cptr).scale_by(beta);
+                *cptr *= beta;
             }
         }
     }

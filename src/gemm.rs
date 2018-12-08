@@ -147,6 +147,9 @@ fn ensure_kernel_params<K>()
 
 /// Implement matrix multiply using packed buffers and a microkernel
 /// strategy, the type parameter `K` is the gemm microkernel.
+// no inline is best for the default case, where we support many K per
+// gemm entry point. FIXME: make this conditional on feature detection
+#[inline(never)]
 unsafe fn gemm_loop<K>(
     m: usize, k: usize, n: usize,
     alpha: K::Elem,

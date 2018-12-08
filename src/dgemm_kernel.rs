@@ -234,14 +234,6 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
 
     let mut ab = [_mm256_setzero_pd(); MR];
 
-    // TODO: Allow calculating the case C^T = B^T A^T as described below.
-    // this kernel can operate in either transposition (C = A B or C^T = B^T A^T).
-    // Flipping the variables currently leads to failed tests.
-    // Compared to the SGEMM Kernel, what's different?
-    // let prefer_col_major_c = rsc == 1;
-    // let (mut a, mut b) = if prefer_col_major_c { (a, b) } else { (b, a) };
-    // let (rsc, csc) = if prefer_col_major_c { (rsc, csc) } else { (csc, rsc) };
-    //
     let (mut a, mut b) = (a, b);
 
     // With MR=8, we load sets of 4 doubles from a

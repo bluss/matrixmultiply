@@ -182,18 +182,18 @@ impl GemmKernel for KernelFallback {
     }
 }
 
-#[inline]
-#[target_feature(enable="fma")]
+// no inline for unmasked kernels
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+#[target_feature(enable="fma")]
 unsafe fn kernel_target_fma(k: usize, alpha: T, a: *const T, b: *const T,
                             beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     kernel_x86_avx::<FusedMulAdd>(k, alpha, a, b, beta, c, rsc, csc)
 }
 
-#[inline]
-#[target_feature(enable="avx")]
+// no inline for unmasked kernels
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+#[target_feature(enable="avx")]
 unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
                             beta: T, c: *mut T, rsc: isize, csc: isize)
 {
@@ -201,8 +201,8 @@ unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
 }
 
 #[inline]
-#[target_feature(enable="sse2")]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+#[target_feature(enable="sse2")]
 unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
                              beta: T, c: *mut T, rsc: isize, csc: isize)
 {

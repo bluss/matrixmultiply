@@ -6,6 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::ops::{AddAssign, MulAssign};
+
 /// General matrix multiply kernel
 pub trait GemmKernel {
     type Elem: Element;
@@ -57,36 +59,22 @@ pub trait GemmKernel {
         c: *mut Self::Elem, rsc: isize, csc: isize);
 }
 
-pub trait Element : Copy {
+pub trait Element : Copy + AddAssign + MulAssign + Send + Sync {
     fn zero() -> Self;
     fn one() -> Self;
     fn is_zero(&self) -> bool;
-    fn add(&mut self, a: Self);
-    fn scale_by(&mut self, x: Self);
 }
 
 impl Element for f32 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
     fn is_zero(&self) -> bool { *self == 0. }
-    fn add(&mut self, x: Self) {
-        *self += x;
-    }
-    fn scale_by(&mut self, x: Self) {
-        *self *= x;
-    }
 }
 
 impl Element for f64 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
     fn is_zero(&self) -> bool { *self == 0. }
-    fn add(&mut self, x: Self) {
-        *self += x;
-    }
-    fn scale_by(&mut self, x: Self) {
-        *self *= x;
-    }
 }
 
 /// Kernel selector

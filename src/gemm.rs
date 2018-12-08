@@ -385,7 +385,7 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
     let mr = K::MR;
     let nr = K::NR;
     // use column major order for `mask_buf`
-    K::kernel(k, T::one(), a, b, T::zero(), mask_buf, 1, mr as isize);
+    K::kernel(k, alpha, a, b, T::zero(), mask_buf, 1, mr as isize);
     let mut ab = mask_buf;
     for j in 0..nr {
         for i in 0..mr {
@@ -397,7 +397,7 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
                 } else {
                     (*cptr).scale_by(beta);
                 }
-                (*cptr).scaled_add(alpha, *ab);
+                (*cptr).add(*ab);
             }
             ab.inc();
         }

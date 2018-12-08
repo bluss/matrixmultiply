@@ -56,19 +56,19 @@ pub trait Element : Copy {
     fn zero() -> Self;
     fn one() -> Self;
     fn is_zero(&self) -> bool;
+    fn add(&mut self, a: Self);
     fn scale_by(&mut self, x: Self);
-    fn scaled_add(&mut self, alpha: Self, a: Self);
 }
 
 impl Element for f32 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
     fn is_zero(&self) -> bool { *self == 0. }
+    fn add(&mut self, x: Self) {
+        *self += x;
+    }
     fn scale_by(&mut self, x: Self) {
         *self *= x;
-    }
-    fn scaled_add(&mut self, alpha: Self, a: Self) {
-        *self += alpha * a;
     }
 }
 
@@ -76,11 +76,11 @@ impl Element for f64 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
     fn is_zero(&self) -> bool { *self == 0. }
+    fn add(&mut self, x: Self) {
+        *self += x;
+    }
     fn scale_by(&mut self, x: Self) {
         *self *= x;
-    }
-    fn scaled_add(&mut self, alpha: Self, a: Self) {
-        *self += alpha * a;
     }
 }
 

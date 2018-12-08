@@ -1,6 +1,6 @@
 [package]
 name = "matrixmultiply"
-version = "0.2.1"
+version = "0.2.2"
 authors = [
     "bluss",
     "R. Janis Goldschmidt"
@@ -9,7 +9,7 @@ authors = [
 license = "MIT/Apache-2.0"
 
 repository = "https://github.com/bluss/matrixmultiply/"
-documentation = "https://docs.rs/matrixmultiply/0.1/"
+documentation = "https://docs.rs/matrixmultiply/"
 
 description = "General matrix multiplication for f32 and f64 matrices. Operates on matrices with general layout (they can use arbitrary row and column stride). Detects and uses AVX or SSE2 on x86 platforms transparently for higher performance. Uses a microkernel strategy, so that the implementation is easy to parallelize and optimize."
 

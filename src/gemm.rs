@@ -113,8 +113,8 @@ pub unsafe fn i8gemm(
 fn ensure_kernel_params<K>()
     where K: GemmKernel
 {
-    let mr = K::mr();
-    let nr = K::nr();
+    let mr = K::MR;
+    let nr = K::NR;
     assert!(mr > 0 && mr <= 8);
     assert!(nr > 0 && nr <= 8);
     assert!(mr * nr * size_of::<K::ElemOut>() <= 8 * 4 * 8);
@@ -146,7 +146,7 @@ unsafe fn gemm_loop<K>(
     let knc = K::nc();
     let kkc = K::kc();
     let kmc = K::mc();
-    ensure_kernel_params::<K>();
+    // ensure_kernel_params::<K>();
 
     let (mut packing_buffer, bp_offset) = make_packing_buffer::<K>(m, k, n);
     let app = packing_buffer.ptr_mut();
@@ -165,7 +165,7 @@ unsafe fn gemm_loop<K>(
             let a = a.stride_offset(csa, kkc * l4);
 
             // Pack B -> B~
-            pack(kc, nc, K::nr(), bpp, b, csb, rsb);
+            pack(kc, nc, K::NR, bpp, b, csb, rsb);
 
             // LOOP 3: split m into mc parts
             for (l3, mc) in range_chunk(m, kmc) {
@@ -174,13 +174,13 @@ unsafe fn gemm_loop<K>(
                 let c = c.stride_offset(rsc, kmc * l3);
 
                 // Pack A -> A~
-                pack(kc, mc, K::mr(), app, a, rsa, csa);
+                pack(kc, mc, K::MR, app, a, rsa, csa);
 
                 // First time writing to C, use user's `beta`, else accumulate
                 let betap = if l4 == 0 { beta } else { <_>::one() };
 
                 // LOOP 2 and 1
-                gemm_packed::<K>(nc, kc, mc,
+                gemm_packed::<K, _, _>(nc, kc, mc,
                                  alpha,
                                  app, bpp,
                                  betap,
@@ -197,18 +197,20 @@ unsafe fn gemm_loop<K>(
 /// + nc: columns of packed B
 /// + kc: columns of packed A / rows of packed B
 /// + mc: rows of packed A
-unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
-                         alpha: K::ElemOut,
-                         app: *const K::ElemIn, bpp: *const K::ElemIn,
-                         beta: K::ElemOut,
-                         c: *mut K::ElemOut, rsc: isize, csc: isize)
-    where K: GemmKernel,
+unsafe fn gemm_packed<K, Tin, Tout>(nc: usize, kc: usize, mc: usize,
+                         alpha: Tout,
+                         app: *const Tin, bpp: *const Tin,
+                         beta: Tout,
+                         c: *mut Tout, rsc: isize, csc: isize)
+    where K: GemmKernel<ElemIn=Tin, ElemOut=Tout>,
+          Tin: Element,
+          Tout: Element,
 {
-    let mr = K::mr();
-    let nr = K::nr();
+    let mr = K::MR;
+    let nr = K::NR;
     // make a mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
-    assert!(mr * nr * size_of::<K::ElemOut>() <= 256 && K::align_to() <= 32);
-    let mut mask_buf = [0u8; 256 + 31];
+    // assert!(mr * nr * size_of::<K::ElemOut>() <= 256 && K::align_to() <= 32);
+    let mut mask_buf = [0u8; K::MR * K::NR * size_of::<K::ElemIn>() + 31];
     let mask_ptr = align_ptr(32, mask_buf.as_mut_ptr()) as *mut K::ElemOut;
 
     // LOOP 2: through micropanels in packed `b`
@@ -254,8 +256,8 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize) -> (Alloc<K::Elem
     let n = min(n, K::nc());
     // round up k, n to multiples of mr, nr
     // round up to multiple of kc
-    let apack_size = k * round_up_to(m, K::mr());
-    let bpack_size = k * round_up_to(n, K::nr());
+    let apack_size = k * round_up_to(m, K::MR);
+    let bpack_size = k * round_up_to(n, K::NR);
     let nelem = apack_size + bpack_size;
 
     dprint!("packed nelem={}, apack={}, bpack={},
@@ -360,8 +362,8 @@ unsafe fn masked_kernel<Tin, Tout, K>(k: usize, alpha: Tout,
           Tin: Element,
           Tout: Element,
 {
-    let mr = K::mr();
-    let nr = K::nr();
+    let mr = K::MR;
+    let nr = K::NR;
     // use column major order for `mask_buf`
     K::kernel(k, Tout::one(), a, b, Tout::zero(), mask_buf, 1, mr as isize);
     let mut ab = mask_buf;

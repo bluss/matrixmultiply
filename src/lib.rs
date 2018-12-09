@@ -52,6 +52,8 @@
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.2/")]
 
+#![feature(const_fn)]
+
 extern crate rawpointer;
 
 #[macro_use] mod archmacros_x86;

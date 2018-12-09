@@ -11,13 +11,14 @@ pub trait GemmKernel {
     type ElemIn: Element;
     type ElemOut: Element;
 
+    /// Number of kernel rows
+    const MR: usize;
+
+    /// Number of kernel columns
+    const NR: usize;
+
     /// align inputs to this
     fn align_to() -> usize;
-
-    /// Kernel rows
-    fn mr() -> usize;
-    /// Kernel cols
-    fn nr() -> usize;
 
     /// Whether to always use the masked wrapper around the kernel.
     ///

@@ -30,13 +30,11 @@ impl GemmKernel for Gemm {
     type ElemIn = Tin;
     type ElemOut = Tout;
 
-    #[inline(always)]
-    fn align_to() -> usize { 16 }
+    const MR: usize = MR;
+    const NR: usize = NR;
 
     #[inline(always)]
-    fn mr() -> usize { MR }
-    #[inline(always)]
-    fn nr() -> usize { NR }
+    fn align_to() -> usize { 16 }
 
     #[inline(always)]
     fn always_masked() -> bool { true }

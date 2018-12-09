@@ -19,7 +19,7 @@ use kernel::GemmKernel;
 use kernel::Element;
 use sgemm_kernel;
 use dgemm_kernel;
-// use igemm_kernel;
+use i8gemm_kernel;
 use rawpointer::PointerExt;
 
 /// General matrix multiplication (f32)
@@ -88,22 +88,22 @@ pub unsafe fn dgemm(
         c, rsc, csc)
 }
 
-// pub unsafe fn igemm(
-//     m: usize, k: usize, n: usize,
-//     alpha: i32,
-//     a: *const i32, rsa: isize, csa: isize,
-//     b: *const i32, rsb: isize, csb: isize,
-//     beta: i32,
-//     c: *mut i32, rsc: isize, csc: isize)
-// {
-//     gemm_loop::<igemm_kernel::Gemm>(
-//         m, k, n,
-//         alpha,
-//         a, rsa, csa,
-//         b, rsb, csb,
-//         beta,
-//         c, rsc, csc)
-// }
+pub unsafe fn i8gemm(
+    m: usize, k: usize, n: usize,
+    alpha: i16,
+    a: *const i8, rsa: isize, csa: isize,
+    b: *const i8, rsb: isize, csb: isize,
+    beta: i16,
+    c: *mut i16, rsc: isize, csc: isize)
+{
+    gemm_loop::<i8gemm_kernel::Gemm>(
+        m, k, n,
+        alpha,
+        a, rsa, csa,
+        b, rsb, csb,
+        beta,
+        c, rsc, csc)
+}
 
 /// Ensure that GemmKernel parameters are supported
 /// (alignment, microkernel size).

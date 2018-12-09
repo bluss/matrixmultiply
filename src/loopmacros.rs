@@ -51,6 +51,80 @@ macro_rules! loop8 {
 }
 
 #[cfg(debug_assertions)]
+macro_rules! loop16 {
+    ($i:ident, $e:expr) => {
+        for $i in 0..16 { $e }
+    }
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! loop16 {
+    ($i:ident, $e:expr) => {{
+        let $i = 0; $e;
+        let $i = 1; $e;
+        let $i = 2; $e;
+        let $i = 3; $e;
+        let $i = 4; $e;
+        let $i = 5; $e;
+        let $i = 6; $e;
+        let $i = 7; $e;
+        let $i = 8; $e;
+        let $i = 9; $e;
+        let $i = 10; $e;
+        let $i = 11; $e;
+        let $i = 12; $e;
+        let $i = 13; $e;
+        let $i = 14; $e;
+        let $i = 15; $e;
+    }}
+}
+
+#[cfg(debug_assertions)]
+macro_rules! loop32 {
+    ($i:ident, $e:expr) => {
+        for $i in 0..32 { $e }
+    }
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! loop32 {
+    ($i:ident, $e:expr) => {{
+        let $i = 0; $e;
+        let $i = 1; $e;
+        let $i = 2; $e;
+        let $i = 3; $e;
+        let $i = 4; $e;
+        let $i = 5; $e;
+        let $i = 6; $e;
+        let $i = 7; $e;
+        let $i = 8; $e;
+        let $i = 9; $e;
+        let $i = 10; $e;
+        let $i = 11; $e;
+        let $i = 12; $e;
+        let $i = 13; $e;
+        let $i = 14; $e;
+        let $i = 15; $e;
+        let $i = 16; $e;
+        let $i = 17; $e;
+        let $i = 18; $e;
+        let $i = 19; $e;
+        let $i = 20; $e;
+        let $i = 21; $e;
+        let $i = 22; $e;
+        let $i = 23; $e;
+        let $i = 24; $e;
+        let $i = 25; $e;
+        let $i = 26; $e;
+        let $i = 27; $e;
+        let $i = 28; $e;
+        let $i = 29; $e;
+        let $i = 30; $e;
+        let $i = 31; $e;
+    }}
+}
+
+#[cfg(debug_assertions)]
 macro_rules! unroll_by {
     ($by:tt => $ntimes:expr, $e:expr) => {
         for _ in 0..$ntimes { $e }

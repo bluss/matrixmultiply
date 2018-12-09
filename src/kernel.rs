@@ -133,11 +133,11 @@ macro_rules! impl_element_i {
             fn is_zero(&self) -> bool { *self == 0 }
             fn scale_by(&mut self, x: Self) {
                 // TODO: Change the semantics
-                *self = self.wrapping_mul(x);
+                *self = self.saturating_mul(x);
             }
                 // TODO: Change the semantics
             fn scaled_add(&mut self, alpha: Self, a: Self) {
-                *self = self.wrapping_add(alpha.wrapping_mul(a));
+                *self = self.saturating_add(alpha.saturating_mul(a));
             }
         }
         )+

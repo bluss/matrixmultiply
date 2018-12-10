@@ -24,15 +24,14 @@ macro_rules! loop_n {
 }
 
 impl GemmKernel for Gemm {
-    type Elem = T;
+    type ElemIn = T;
+    type ElemOut = T;
+
+    const MR: usize = MR;
+    const NR: usize = NR;
 
     #[inline(always)]
     fn align_to() -> usize { 0 }
-
-    #[inline(always)]
-    fn mr() -> usize { MR }
-    #[inline(always)]
-    fn nr() -> usize { NR }
 
     #[inline(always)]
     fn always_masked() -> bool { true }

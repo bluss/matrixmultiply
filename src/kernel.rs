@@ -8,15 +8,17 @@
 
 /// General matrix multiply kernel
 pub trait GemmKernel {
-    type Elem: Element;
+    type ElemIn: Element;
+    type ElemOut: Element;
+
+    /// Number of kernel rows
+    const MR: usize;
+
+    /// Number of kernel columns
+    const NR: usize;
 
     /// align inputs to this
     fn align_to() -> usize;
-
-    /// Kernel rows
-    fn mr() -> usize;
-    /// Kernel cols
-    fn nr() -> usize;
 
     /// Whether to always use the masked wrapper around the kernel.
     ///
@@ -41,11 +43,11 @@ pub trait GemmKernel {
     /// + if `beta` is `0.`, then c does not need to be initialized
     unsafe fn kernel(
         k: usize,
-        alpha: Self::Elem,
-        a: *const Self::Elem,
-        b: *const Self::Elem,
-        beta: Self::Elem,
-        c: *mut Self::Elem, rsc: isize, csc: isize);
+        alpha: Self::ElemOut,
+        a: *const Self::ElemIn,
+        b: *const Self::ElemIn,
+        beta: Self::ElemOut,
+        c: *mut Self::ElemOut, rsc: isize, csc: isize);
 }
 
 pub trait Element : Copy {
@@ -56,38 +58,91 @@ pub trait Element : Copy {
     fn scaled_add(&mut self, alpha: Self, a: Self);
 }
 
-impl Element for f32 {
-    fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
-    fn is_zero(&self) -> bool { *self == 0. }
-    fn scale_by(&mut self, x: Self) {
-        *self *= x;
-    }
-    fn scaled_add(&mut self, alpha: Self, a: Self) {
-        *self += alpha * a;
-    }
-}
+// impl Element for f32 {
+//     fn zero() -> Self { 0. }
+//     fn one() -> Self { 1. }
+//     fn is_zero(&self) -> bool { *self == 0. }
+//     fn scale_by(&mut self, x: Self) {
+//         *self *= x;
+//     }
+//     fn scaled_add(&mut self, alpha: Self, a: Self) {
+//         *self += alpha * a;
+//     }
+// }
 
-impl Element for f64 {
-    fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
-    fn is_zero(&self) -> bool { *self == 0. }
-    fn scale_by(&mut self, x: Self) {
-        *self *= x;
-    }
-    fn scaled_add(&mut self, alpha: Self, a: Self) {
-        *self += alpha * a;
-    }
-}
+// impl Element for f64 {
+//     fn zero() -> Self { 0. }
+//     fn one() -> Self { 1. }
+//     fn is_zero(&self) -> bool { *self == 0. }
+//     fn scale_by(&mut self, x: Self) {
+//         *self *= x;
+//     }
+//     fn scaled_add(&mut self, alpha: Self, a: Self) {
+//         *self += alpha * a;
+//     }
+// }
 
-impl Element for i32 {
-    fn zero() -> Self { 0 }
-    fn one() -> Self { 1 }
-    fn is_zero(&self) -> bool { *self == 0 }
-    fn scale_by(&mut self, x: Self) {
-        *self = self.wrapping_mul(x);
-    }
-    fn scaled_add(&mut self, alpha: Self, a: Self) {
-        *self = self.wrapping_add(alpha.wrapping_mul(a));
-    }
-}
+// impl Element for i32 {
+//     fn zero() -> Self { 0 }
+//     fn one() -> Self { 1 }
+//     fn is_zero(&self) -> bool { *self == 0 }
+//     fn scale_by(&mut self, x: Self) {
+//         *self = self.wrapping_mul(x);
+//     }
+//     fn scaled_add(&mut self, alpha: Self, a: Self) {
+//         *self = self.wrapping_add(alpha.wrapping_mul(a));
+//     }
+// }
+
+// impl Element for i32 {
+//     fn zero() -> Self { 0 }
+//     fn one() -> Self { 1 }
+//     fn is_zero(&self) -> bool { *self == 0 }
+//     fn scale_by(&mut self, x: Self) {
+//         *self = self.wrapping_mul(x);
+//     }
+//     fn scaled_add(&mut self, alpha: Self, a: Self) {
+//         *self = self.wrapping_add(alpha.wrapping_mul(a));
+//     }
+// }
+
+macro_rules! impl_element_f {
+    ($($t:ty),+) => {
+        $(
+        impl Element for $t {
+            fn zero() -> Self { 0.0 }
+            fn one() -> Self { 1.0 }
+            fn is_zero(&self) -> bool { *self == 0.0 }
+            fn scale_by(&mut self, x: Self) {
+                // TODO: Change the semantics
+                *self *= x;
+            }
+                // TODO: Change the semantics
+            fn scaled_add(&mut self, alpha: Self, a: Self) {
+                *self += alpha * a;
+            }
+        }
+        )+
+};}
+
+macro_rules! impl_element_i {
+    ($($t:ty),+) => {
+        $(
+        impl Element for $t {
+            fn zero() -> Self { 0 }
+            fn one() -> Self { 1 }
+            fn is_zero(&self) -> bool { *self == 0 }
+            fn scale_by(&mut self, x: Self) {
+                // TODO: Change the semantics
+                *self = self.saturating_mul(x);
+            }
+                // TODO: Change the semantics
+            fn scaled_add(&mut self, alpha: Self, a: Self) {
+                *self = self.saturating_add(alpha.saturating_mul(a));
+            }
+        }
+        )+
+};}
+
+impl_element_f!(f32, f64);
+impl_element_i!(i8, i16, i32);

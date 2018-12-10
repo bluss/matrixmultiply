@@ -52,6 +52,8 @@
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.2/")]
 
+#![feature(const_fn)]
+
 extern crate rawpointer;
 
 #[macro_use] mod archmacros_x86;
@@ -62,10 +64,10 @@ mod kernel;
 mod gemm;
 mod sgemm_kernel;
 mod dgemm_kernel;
-mod igemm_kernel;
+mod i8gemm_kernel;
 mod util;
 mod aligned_alloc;
 
 pub use gemm::sgemm;
 pub use gemm::dgemm;
-pub use gemm::igemm;
+pub use gemm::i8gemm;

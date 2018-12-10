@@ -180,7 +180,7 @@ unsafe fn gemm_loop<K>(
                 let betap = if l4 == 0 { beta } else { <_>::one() };
 
                 // LOOP 2 and 1
-                gemm_packed::<K, _, _>(nc, kc, mc,
+                gemm_packed::<K>(nc, kc, mc,
                                  alpha,
                                  app, bpp,
                                  betap,
@@ -197,20 +197,19 @@ unsafe fn gemm_loop<K>(
 /// + nc: columns of packed B
 /// + kc: columns of packed A / rows of packed B
 /// + mc: rows of packed A
-unsafe fn gemm_packed<K, Tin, Tout>(nc: usize, kc: usize, mc: usize,
-                         alpha: Tout,
-                         app: *const Tin, bpp: *const Tin,
-                         beta: Tout,
-                         c: *mut Tout, rsc: isize, csc: isize)
-    where K: GemmKernel<ElemIn=Tin, ElemOut=Tout>,
-          Tin: Element,
-          Tout: Element,
+unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
+                         alpha: K::ElemOut,
+                         app: *const K::ElemIn, bpp: *const K::ElemIn,
+                         beta: K::ElemOut,
+                         c: *mut K::ElemOut, rsc: isize, csc: isize)
+    where K: GemmKernel,
 {
     let mr = K::MR;
     let nr = K::NR;
     // make a mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
     // assert!(mr * nr * size_of::<K::ElemOut>() <= 256 && K::align_to() <= 32);
-    let mut mask_buf = [0u8; K::MR * K::NR * size_of::<K::ElemIn>() + 31];
+    // let mut mask_buf = [0u8; 256 + 31];
+    let mut mask_buf = [0u8; 16*32*2 + 31];
     let mask_ptr = align_ptr(32, mask_buf.as_mut_ptr()) as *mut K::ElemOut;
 
     // LOOP 2: through micropanels in packed `b`

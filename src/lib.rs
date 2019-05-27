@@ -42,7 +42,7 @@
 //! For example for a contiguous matrix, row major strides are *rsa=k,
 //! csa=1* and column major strides are *rsa=1, csa=m*.
 //!
-//! Stides can be negative or even zero, but for a mutable matrix elements
+//! Strides can be negative or even zero, but for a mutable matrix elements
 //! may not alias each other.
 //!
 //! ## Portability and Performance

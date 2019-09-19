@@ -158,7 +158,7 @@ gemm_layout!{layout_f64_032, dgemm,
 }
 
 
-use std::ops::{Add, Mul};
+use core::ops::{Add, Mul};
 
 trait Z {
     fn zero() -> Self;

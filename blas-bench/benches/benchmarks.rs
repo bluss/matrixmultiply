@@ -7,7 +7,7 @@ pub use matrixmultiply::dgemm;
 extern crate bencher;
 extern crate blas;
 
-use std::os::raw::c_int;
+use core::os::raw::c_int;
 
 
 #[allow(non_camel_case_types)]

@@ -1,12 +1,11 @@
 
-use std::alloc;
-use std::alloc::{Layout, handle_alloc_error};
-use std::{mem, cmp};
+use alloc::alloc::{self, Layout, handle_alloc_error};
+use core::{mem, cmp};
 
 #[cfg(test)]
-use std::ops::{Deref, DerefMut};
+use core::ops::{Deref, DerefMut};
 #[cfg(test)]
-use std::slice;
+use core::slice;
 
 pub(crate) struct Alloc<T> { ptr: *mut T, len: usize, align: usize }
 

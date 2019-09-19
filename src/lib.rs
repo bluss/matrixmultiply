@@ -58,12 +58,37 @@
 //!   - `avx`
 //!   - `sse2`
 //!
+//! ## Features
+//!
+//! This crate can be used without the standard library (`#![no_std]`) by
+//! disabling the default `std` feature. To do so, use this in your
+//! `Cargo.toml`:
+//!
+//! ```toml
+//! matrixmultiply = { version = "0.2", default-features = false }
+//! ```
+//!
+//! Runtime CPU feature detection is available only when `std` is enabled.
+//! Without the `std` feature, the crate uses special CPU features only if they
+//! are enabled at compile time. (To enable CPU features at compile time, pass
+//! the relevant
+//! [`target-cpu`](https://doc.rust-lang.org/rustc/codegen-options/index.html#target-cpu)
+//! or
+//! [`target-feature`](https://doc.rust-lang.org/rustc/codegen-options/index.html#target-feature)
+//! option to `rustc`.)
+//!
 //! ## Other Notes
 //!
 //! The functions in this crate are thread safe, as long as the destination
 //! matrix is distinct.
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.2/")]
+
+#![no_std]
+#[cfg(feature = "std")]
+extern crate std;
+
+extern crate alloc;
 
 extern crate rawpointer;
 

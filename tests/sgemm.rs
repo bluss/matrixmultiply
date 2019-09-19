@@ -1,3 +1,4 @@
+extern crate core;
 extern crate itertools;
 extern crate matrixmultiply;
 
@@ -9,7 +10,7 @@ use itertools::{
     enumerate,
     repeat_n,
 };
-use std::fmt::{Display, Debug};
+use core::fmt::{Display, Debug};
 
 trait Float : Copy + Display + Debug + PartialEq {
     fn zero() -> Self;

@@ -1,14 +1,19 @@
-
-use std::alloc;
-use std::alloc::{Layout, handle_alloc_error};
-use std::{mem, cmp};
+#[cfg(not(feature = "std"))]
+use alloc::alloc::{self, handle_alloc_error, Layout};
+use core::{cmp, mem};
+#[cfg(feature = "std")]
+use std::alloc::{self, handle_alloc_error, Layout};
 
 #[cfg(test)]
-use std::ops::{Deref, DerefMut};
+use core::ops::{Deref, DerefMut};
 #[cfg(test)]
-use std::slice;
+use core::slice;
 
-pub(crate) struct Alloc<T> { ptr: *mut T, len: usize, align: usize }
+pub(crate) struct Alloc<T> {
+    ptr: *mut T,
+    len: usize,
+    align: usize,
+}
 
 impl<T> Alloc<T> {
     #[inline]
@@ -31,7 +36,9 @@ impl<T> Alloc<T> {
     }
 
     #[cfg(test)]
-    pub fn init_with(mut self, elt: T) -> Alloc<T> where T: Copy
+    pub fn init_with(mut self, elt: T) -> Alloc<T>
+    where
+        T: Copy,
     {
         for elt1 in &mut self[..] {
             *elt1 = elt;
@@ -40,13 +47,16 @@ impl<T> Alloc<T> {
     }
 
     #[inline]
-    pub fn ptr_mut(&mut self) -> *mut T { self.ptr }
+    pub fn ptr_mut(&mut self) -> *mut T {
+        self.ptr
+    }
 }
 
 impl<T> Drop for Alloc<T> {
     fn drop(&mut self) {
         unsafe {
-            let layout = Layout::from_size_align_unchecked(mem::size_of::<T>() * self.len, self.align);
+            let layout =
+                Layout::from_size_align_unchecked(mem::size_of::<T>() * self.len, self.align);
             alloc::dealloc(self.ptr as _, layout);
         }
     }
@@ -56,18 +66,13 @@ impl<T> Drop for Alloc<T> {
 impl<T> Deref for Alloc<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {
-        unsafe {
-            slice::from_raw_parts(self.ptr, self.len)
-        }
+        unsafe { slice::from_raw_parts(self.ptr, self.len) }
     }
 }
 
 #[cfg(test)]
 impl<T> DerefMut for Alloc<T> {
     fn deref_mut(&mut self) -> &mut [T] {
-        unsafe {
-            slice::from_raw_parts_mut(self.ptr, self.len)
-        }
+        unsafe { slice::from_raw_parts_mut(self.ptr, self.len) }
     }
 }
-

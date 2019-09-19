@@ -5,16 +5,16 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-//! 
+//!
 //! General matrix multiplication for f32, f64 matrices. Operates on matrices
 //! with general layout (they can use arbitrary row and column stride).
-//! 
+//!
 //! This crate uses the same macro/microkernel approach to matrix multiplication as
 //! the [BLIS][bl] project.
-//! 
+//!
 //! We presently provide a few good microkernels, portable and for x86-64, and
 //! only one operation: the general matrix-matrix multiplication (“gemm”).
-//! 
+//!
 //! [bl]: https://github.com/flame/blis
 //!
 //! ## Matrix Representation
@@ -58,29 +58,56 @@
 //!   - `avx`
 //!   - `sse2`
 //!
+//! ## Features
+//!
+//! This crate can be used without the standard library (`#![no_std]`) by
+//! disabling the default `std` feature. To do so, use this in your
+//! `Cargo.toml`:
+//!
+//! ```toml
+//! matrixmultiply = { version = "0.2", default-features = false }
+//! ```
+//!
+//! Runtime CPU feature detection is available only when `std` is enabled.
+//! Without the `std` feature, the crate uses special CPU features only if they
+//! are enabled at compile time. (To enable CPU features at compile time, pass
+//! the relevant
+//! [`target-cpu`](https://doc.rust-lang.org/rustc/codegen-options/index.html#target-cpu)
+//! or
+//! [`target-feature`](https://doc.rust-lang.org/rustc/codegen-options/index.html#target-feature)
+//! option to `rustc`.)
+//!
 //! ## Other Notes
 //!
 //! The functions in this crate are thread safe, as long as the destination
 //! matrix is distinct.
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.2/")]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate core;
 
 extern crate rawpointer;
 
-#[macro_use] mod debugmacros;
-#[macro_use] mod loopmacros;
+#[macro_use]
+mod debugmacros;
+#[macro_use]
+mod loopmacros;
 mod archparam;
-mod kernel;
 mod gemm;
+mod kernel;
 
-mod util;
 mod aligned_alloc;
+mod util;
 
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_use]
 mod x86;
-mod sgemm_kernel;
 mod dgemm_kernel;
+mod sgemm_kernel;
 
-pub use gemm::sgemm;
 pub use gemm::dgemm;
+pub use gemm::sgemm;

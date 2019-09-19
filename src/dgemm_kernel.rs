@@ -12,9 +12,9 @@ use kernel::{U4, U8};
 use archparam;
 
 #[cfg(target_arch="x86")]
-use std::arch::x86::*;
+use core::arch::x86::*;
 #[cfg(target_arch="x86_64")]
-use std::arch::x86_64::*;
+use core::arch::x86_64::*;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 use x86::{FusedMulAdd, AvxMulAdd, DMultiplyAdd};
 
@@ -867,6 +867,8 @@ mod tests {
     mod test_arch_kernels {
         use super::test_a_kernel;
         use super::super::*;
+        #[cfg(features = "std")]
+        use std::println;
         macro_rules! test_arch_kernels_x86 {
             ($($feature_name:tt, $name:ident, $kernel_ty:ty),*) => {
                 $(
@@ -875,6 +877,7 @@ mod tests {
                     if is_x86_feature_detected_!($feature_name) {
                         test_a_kernel::<$kernel_ty>(stringify!($name));
                     } else {
+                        #[cfg(features = "std")]
                         println!("Skipping, host does not have feature: {:?}", $feature_name);
                     }
                 }

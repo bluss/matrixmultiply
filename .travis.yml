@@ -35,6 +35,34 @@ matrix:
       env:
         TARGET=aarch64-unknown-linux-gnu
         BUILD_ONLY=1
+    - rust: 1.36.0
+      env: TARGET=thumbv6m-none-eabi
+      before_script:
+        - rustup target add $TARGET
+        - set -ex
+      script:
+        - cargo rustc --target=$TARGET --manifest-path=ensure_no_std/Cargo.toml
+    - rust: stable
+      env: TARGET=thumbv6m-none-eabi
+      before_script:
+        - rustup target add $TARGET
+        - set -ex
+      script:
+        - cargo rustc --target=$TARGET --manifest-path=ensure_no_std/Cargo.toml
+    - rust: beta
+      env: TARGET=thumbv6m-none-eabi
+      before_script:
+        - rustup target add $TARGET
+        - set -ex
+      script:
+        - cargo rustc --target=$TARGET --manifest-path=ensure_no_std/Cargo.toml
+    - rust: nightly
+      env: TARGET=thumbv6m-none-eabi
+      before_script:
+        - rustup target add $TARGET
+        - set -ex
+      script:
+        - cargo rustc --target=$TARGET --manifest-path=ensure_no_std/Cargo.toml
 env:
   global:
     - HOST=x86_64-unknown-linux-gnu

@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cmp::min;
+use core::cmp::min;
 
 pub struct RangeChunk { i: usize, n: usize, chunk: usize }
 

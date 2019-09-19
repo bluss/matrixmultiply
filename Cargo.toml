@@ -32,6 +32,11 @@ rawpointer = "0.2"
 bencher = "0.1.2"
 itertools = "0.8"
 
+[features]
+default = ["std"]
+
+std = []
+
 [profile.release]
 [profile.bench]
 

@@ -45,6 +45,13 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.2.3
+
+  - Update rawpointer dependency to 0.2
+  - Minor changes to inlining for ``-Ctarget-cpu=native`` use (not recommended -
+    use automatic runtime feature detection.
+  - Minor improvements to kernel masking (#42, #41) by @bluss and @SuperFluffy
+
 - 0.2.2
 
   - New dgemm avx and fma kernels implemented by R. Janis Goldschmidt

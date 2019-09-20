@@ -1,6 +1,6 @@
 [package]
 name = "matrixmultiply"
-version = "0.2.2"
+version = "0.2.3"
 authors = [
     "bluss",
     "R. Janis Goldschmidt"
@@ -37,4 +37,5 @@ itertools = "0.7.11"
 
 [package.metadata.release]
 no-dev-version = true
+tag-name = "{{version}}"
 

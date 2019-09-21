@@ -30,7 +30,7 @@ rawpointer = "0.2"
 
 [dev-dependencies]
 bencher = "0.1.2"
-itertools = "0.7.11"
+itertools = "0.8"
 
 [profile.release]
 [profile.bench]

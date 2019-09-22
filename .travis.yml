@@ -51,13 +51,19 @@ install:
 # the main build
 script:
   - |
+      set -e &&
+      set -v &&
       rustc --print cfg -Ctarget-cpu=native &&
-      cargo build --target=$TARGET &&
-      ([ -n "$BUILD_ONLY" ] || (
-      cargo test --target=$TARGET &&
-      cargo test --release --target=$TARGET &&
-      cargo doc --target=$TARGET &&
-      cargo bench --target=$TARGET ))
+      cargo build -v --target=$TARGET && (
+      if [ -n "$BUILD_ONLY" ]; then
+        cargo check --tests -v --target=$TARGET &&
+        cargo doc -v --target=$TARGET
+      else
+        cargo test -v --target=$TARGET &&
+        cargo test -v --release --target=$TARGET &&
+        cargo doc -v --target=$TARGET &&
+        cargo bench -v --target=$TARGET
+      fi)
 
 branches:
   only:

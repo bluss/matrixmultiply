@@ -814,10 +814,12 @@ mod tests {
     use super::*;
     use aligned_alloc::Alloc;
 
-    fn aligned_alloc<T>(elt: T, n: usize) -> Alloc<T> where T: Copy
+    fn aligned_alloc<K>(elt: K::Elem, n: usize) -> Alloc<K::Elem>
+        where K: GemmKernel,
+              K::Elem: Copy,
     {
         unsafe {
-            Alloc::new(n, KernelAvx::align_to()).init_with(elt)
+            Alloc::new(n, K::align_to()).init_with(elt)
         }
     }
 
@@ -827,8 +829,8 @@ mod tests {
         const K: usize = 4;
         let mr = K::MR;
         let nr = K::NR;
-        let mut a = aligned_alloc(1., mr * K);
-        let mut b = aligned_alloc(0., nr * K);
+        let mut a = aligned_alloc::<K>(1., mr * K);
+        let mut b = aligned_alloc::<K>(0., nr * K);
         for (i, x) in a.iter_mut().enumerate() {
             *x = i as _;
         }
@@ -850,6 +852,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     fn test_loop_m_n() {
         let mut m = [[0; 4]; KernelAvx::MR];
         loop_m!(i, loop4!(j, m[i][j] += 1));

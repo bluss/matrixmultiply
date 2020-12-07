@@ -8,6 +8,7 @@
 
 use kernel::GemmKernel;
 use kernel::GemmSelect;
+#[allow(unused)]
 use kernel::{U4, U8};
 use archparam;
 

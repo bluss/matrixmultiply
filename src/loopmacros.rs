@@ -78,6 +78,7 @@ macro_rules! unroll_by {
     }}
 }
 
+#[allow(unused)]
 #[cfg(debug_assertions)]
 macro_rules! unroll_by_with_last {
     ($by:tt => $ntimes:expr, $is_last:ident, $e:expr) => {{

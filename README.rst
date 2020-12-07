@@ -45,6 +45,16 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.2.4
+
+  - Support no-std mode by @vadixidav and @jturner314
+    New (default) feature flag "std"; use default-features = false to disable
+    and use no-std.
+    Note that runtime CPU feature detection requires std.
+
+  - Fix tests so that they build correctly on non-x86 #49 platforms, and manage
+    the release by @bluss
+
 - 0.2.3
 
   - Update rawpointer dependency to 0.2

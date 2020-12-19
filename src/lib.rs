@@ -99,6 +99,7 @@ mod loopmacros;
 mod archparam;
 mod gemm;
 mod kernel;
+mod ptr;
 
 mod aligned_alloc;
 mod util;

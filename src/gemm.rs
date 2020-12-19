@@ -12,6 +12,7 @@ use core::ptr::copy_nonoverlapping;
 
 use crate::aligned_alloc::Alloc;
 
+use crate::ptr::Ptr;
 use crate::util::range_chunk;
 use crate::util::round_up_to;
 
@@ -172,8 +173,12 @@ unsafe fn gemm_loop<K>(
     let kmc = K::mc();
     ensure_kernel_params::<K>();
 
+    let a = Ptr(a);
+    let b = Ptr(b);
+    let c = Ptr(c);
+
     let (mut packing_buffer, bp_offset) = make_packing_buffer::<K>(m, k, n);
-    let app = packing_buffer.ptr_mut();
+    let app = Ptr(packing_buffer.ptr_mut());
     let bpp = app.add(bp_offset);
 
     // LOOP 5: split n into nc parts (B, C)
@@ -189,7 +194,10 @@ unsafe fn gemm_loop<K>(
             let a = a.stride_offset(csa, kkc * l4);
 
             // Pack B -> B~
-            pack::<K::NRTy, _>(kc, nc, bpp, b, csb, rsb);
+            pack::<K::NRTy, _>(kc, nc, bpp.ptr(), b.ptr(), csb, rsb);
+
+            // First time writing to C, use user's `beta`, else accumulate
+            let betap = if l4 == 0 { beta } else { <_>::one() };
 
             // LOOP 3: split m into mc parts (A, C)
             for (l3, mc) in range_chunk(m, kmc) {
@@ -198,15 +206,12 @@ unsafe fn gemm_loop<K>(
                 let c = c.stride_offset(rsc, kmc * l3);
 
                 // Pack A -> A~
-                pack::<K::MRTy, _>(kc, mc, app, a, rsa, csa);
-
-                // First time writing to C, use user's `beta`, else accumulate
-                let betap = if l4 == 0 { beta } else { <_>::one() };
+                pack::<K::MRTy, _>(kc, mc, app.ptr(), a.ptr(), rsa, csa);
 
                 // LOOP 2 and 1
                 gemm_packed::<K>(nc, kc, mc,
                                  alpha,
-                                 app, bpp,
+                                 app.to_const(), bpp.to_const(),
                                  betap,
                                  c, rsc, csc);
             }
@@ -223,9 +228,9 @@ unsafe fn gemm_loop<K>(
 /// + mc: rows of packed A
 unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
                          alpha: K::Elem,
-                         app: *const K::Elem, bpp: *const K::Elem,
+                         app: Ptr<*const K::Elem>, bpp: Ptr<*const K::Elem>,
                          beta: K::Elem,
-                         c: *mut K::Elem, rsc: isize, csc: isize)
+                         c: Ptr<*mut K::Elem>, rsc: isize, csc: isize)
     where K: GemmKernel,
 {
     let mr = K::MR;
@@ -249,12 +254,12 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
             // NOTE: For the rust kernels, it performs better to simply
             // always use the masked kernel function!
             if K::always_masked() || nr_ < nr || mr_ < mr {
-                masked_kernel::<_, K>(kc, alpha, &*app, &*bpp,
-                                      beta, &mut *c, rsc, csc,
+                masked_kernel::<_, K>(kc, alpha, &*app.ptr(), &*bpp.ptr(),
+                                      beta, &mut *c.ptr(), rsc, csc,
                                       mr_, nr_, mask_ptr);
                 continue;
             } else {
-                K::kernel(kc, alpha, app, bpp, beta, c, rsc, csc);
+                K::kernel(kc, alpha, app.ptr(), bpp.ptr(), beta, c.ptr(), rsc, csc);
             }
         }
     }

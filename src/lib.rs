@@ -60,6 +60,10 @@
 //!
 //! ## Features
 //!
+//! ### `std`
+//!
+//! `std` is enabled by default.
+//!
 //! This crate can be used without the standard library (`#![no_std]`) by
 //! disabling the default `std` feature. To do so, use this in your
 //! `Cargo.toml`:
@@ -77,6 +81,12 @@
 //! [`target-feature`](https://doc.rust-lang.org/rustc/codegen-options/index.html#target-feature)
 //! option to `rustc`.)
 //!
+//! ### `threading`
+//!
+//! `threading` is optional
+//!
+//! Threading enables multithreading for the operations.
+//!
 //! ## Other Notes
 //!
 //! The functions in this crate are thread safe, as long as the destination
@@ -90,8 +100,6 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate core;
 
-extern crate rawpointer;
-
 #[macro_use]
 mod debugmacros;
 #[macro_use]
@@ -100,6 +108,7 @@ mod archparam;
 mod gemm;
 mod kernel;
 mod ptr;
+mod threading;
 
 mod aligned_alloc;
 mod util;

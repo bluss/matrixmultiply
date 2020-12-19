@@ -8,6 +8,8 @@
 
 use core::cmp::min;
 
+use crate::threading::ThreadPoolCtx;
+
 #[derive(Copy, Clone)]
 pub struct RangeChunk { i: usize, n: usize, chunk: usize }
 
@@ -45,6 +47,7 @@ pub fn round_up_to(x: usize, multiple_of: usize) -> usize {
     d * multiple_of
 }
 
+#[cfg(feature="threading")]
 /// Create an iterator that splits `n` in chunks of size `chunk`;
 /// the last item can be an uneven chunk.
 ///
@@ -66,3 +69,100 @@ pub fn range_chunk_part(n: usize, chunk: usize, index: usize, total: usize) -> R
 
     RangeChunk { i, n: nn, chunk }
 }
+
+impl RangeChunk {
+    /// "Builder" method to create a RangeChunkParallel
+    pub(crate) fn parallel(self, nthreads: u8, pool: ThreadPoolCtx) -> RangeChunkParallel<fn()> {
+        fn nop() {}
+
+        RangeChunkParallel {
+            nthreads,
+            pool,
+            range: self,
+            thread_local: nop,
+        }
+    }
+}
+
+/// Intermediate struct for building the parallel execution of a range chunk.
+pub(crate) struct RangeChunkParallel<'a, G> {
+    range: RangeChunk,
+    nthreads: u8,
+    pool: ThreadPoolCtx<'a>,
+    thread_local: G,
+}
+
+impl<'a, G> RangeChunkParallel<'a, G> {
+    /// Set thread local setup function - called once per thread to setup thread local data.
+    pub(crate) fn thread_local<G2, R>(self, func: G2) -> RangeChunkParallel<'a, G2>
+        where G2: Fn(usize, usize) -> R + Sync
+    {
+        RangeChunkParallel {
+            nthreads: self.nthreads,
+            pool: self.pool,
+            thread_local: func,
+            range: self.range,
+        }
+    }
+}
+
+#[cfg(not(feature="threading"))]
+impl<G, R> RangeChunkParallel<'_, G>
+    where G: Fn(usize, usize) -> R + Sync,
+{
+    pub(crate) fn for_each<F>(self, for_each: F)
+        where F: Fn(ThreadPoolCtx<'_>, &mut R, usize, usize) + Sync,
+    {
+        let mut local = (self.thread_local)(0, 1);
+        for (ln, chunk_size) in self.range {
+            for_each(self.pool, &mut local, ln, chunk_size)
+        }
+    }
+}
+
+
+#[cfg(feature="threading")]
+impl<G, R> RangeChunkParallel<'_, G>
+    where G: Fn(usize, usize) -> R + Sync,
+{
+    /// Execute loop iterations (parallel if enabled) using the given closure.
+    ///
+    /// The closure gets the following arguments for each iteration:
+    ///
+    /// - Thread pool context (used for child threads)
+    /// - Mutable reference to thread local data
+    /// - index of chunk (like RangeChunk)
+    /// - size of chunk (like RangeChunk)
+    pub(crate) fn for_each<F>(self, for_each: F)
+        where F: Fn(ThreadPoolCtx<'_>, &mut R, usize, usize) + Sync,
+    {
+        fn inner<F, G, R>(range: RangeChunk, index: usize, nthreads: usize, pool: ThreadPoolCtx<'_>,
+                          thread_local: G, for_each: F)
+            where G: Fn(usize, usize) -> R + Sync,
+                  F: Fn(ThreadPoolCtx<'_>, &mut R, usize, usize) + Sync
+        {
+            let mut local = thread_local(index, nthreads);
+            for (ln, chunk_size) in range_chunk_part(range.n, range.chunk, index, nthreads) {
+                for_each(pool, &mut local, ln, chunk_size)
+            }
+        }
+
+        let pool = self.pool;
+        let nthreads = self.nthreads;
+        let thread_local = self.thread_local;
+        let range = self.range;
+
+        if nthreads > 1 {
+            let nthreads = 2;
+            let for_each = &for_each;
+            let thread_local = &thread_local;
+            pool.join(move |ctx| inner(range, 0, nthreads, ctx, thread_local, for_each),
+                      move |ctx| inner(range, 1, nthreads, ctx, thread_local, for_each));
+        } else {
+            let nthreads = 1;
+            inner(range, 0, nthreads, pool, &thread_local, &for_each);
+        }
+    }
+
+}
+

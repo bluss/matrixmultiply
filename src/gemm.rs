@@ -6,6 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use core::cell::RefCell;
 use core::cmp::min;
 use core::mem::size_of;
 use core::ptr::copy_nonoverlapping;
@@ -20,6 +21,7 @@ use crate::kernel::ConstNum;
 use crate::kernel::Element;
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
+use crate::threading::{NTHREADS, THREADPOOL, ThreadPoolCtx, LoopThreadConfig};
 use crate::sgemm_kernel;
 use crate::dgemm_kernel;
 use rawpointer::PointerExt;
@@ -177,9 +179,14 @@ unsafe fn gemm_loop<K>(
     let b = Ptr(b);
     let c = Ptr(c);
 
-    let (mut packing_buffer, bp_offset) = make_packing_buffer::<K>(m, k, n);
+    let thread_config = LoopThreadConfig::new::<K>(m, k, n, *NTHREADS);
+    let nap = thread_config.loop3 as usize; // number of A packing buffers
+
+    let (mut packing_buffer, ap_size) = make_packing_buffer::<K>(m, k, n, nap);
     let app = Ptr(packing_buffer.ptr_mut());
-    let bpp = app.add(bp_offset);
+    let bpp = app.add(ap_size * nap);
+
+    let tp = THREADPOOL.top();
 
     // LOOP 5: split n into nc parts (B, C)
     for (l5, nc) in range_chunk(n, knc) {
@@ -188,6 +195,8 @@ unsafe fn gemm_loop<K>(
         let c = c.stride_offset(csc, knc * l5);
 
         // LOOP 4: split k in kc parts (A, B)
+        // This particular loop can't be parallelized because the
+        // C chunk (writable) is shared between iterations.
         for (l4, kc) in range_chunk(k, kkc) {
             dprint!("LOOP 4, {}, kc={}", l4, kc);
             let b = b.stride_offset(rsb, kkc * l4);
@@ -200,23 +209,40 @@ unsafe fn gemm_loop<K>(
             let betap = if l4 == 0 { beta } else { <_>::one() };
 
             // LOOP 3: split m into mc parts (A, C)
-            for (l3, mc) in range_chunk(m, kmc) {
-                dprint!("LOOP 3, {}, mc={}", l3, mc);
-                let a = a.stride_offset(rsa, kmc * l3);
-                let c = c.stride_offset(rsc, kmc * l3);
+            range_chunk(m, kmc)
+                .parallel(thread_config.loop3, tp)
+                .thread_local(move |i, _nt| {
+                    // a packing buffer A~ per thread
+                    debug_assert!(i < nap);
+                    app.add(ap_size * i)
+                })
+                .for_each(move |tp, &mut app, l3, mc| {
+                    dprint!("LOOP 3, {}, mc={}", l3, mc);
+                    let a = a.stride_offset(rsa, kmc * l3);
+                    let c = c.stride_offset(rsc, kmc * l3);
 
-                // Pack A -> A~
-                pack::<K::MRTy, _>(kc, mc, app.ptr(), a.ptr(), rsa, csa);
+                    // Pack A -> A~
+                    pack::<K::MRTy, _>(kc, mc, app.ptr(), a.ptr(), rsa, csa);
 
-                // LOOP 2 and 1
-                gemm_packed::<K>(nc, kc, mc,
-                                 alpha,
-                                 app.to_const(), bpp.to_const(),
-                                 betap,
-                                 c, rsc, csc);
-            }
+                    // LOOP 2 and 1
+                    gemm_packed::<K>(nc, kc, mc,
+                                     alpha,
+                                     app.to_const(), bpp.to_const(),
+                                     betap,
+                                     c, rsc, csc,
+                                     tp, thread_config);
+                });
         }
     }
+}
+
+// set up buffer for masked (redirected output of) kernel
+const KERNEL_MAX_SIZE: usize = 8 * 8 * 4;
+const KERNEL_MAX_ALIGN: usize = 32;
+const KERNEL_MASK_BUF_SIZE: usize = KERNEL_MAX_SIZE + KERNEL_MAX_ALIGN - 1;
+
+thread_local! {
+    pub static MASK_BUF: RefCell<[u8; KERNEL_MASK_BUF_SIZE]> = RefCell::new([0; KERNEL_MASK_BUF_SIZE]);
 }
 
 /// Loops 1 and 2 around the µ-kernel
@@ -230,39 +256,47 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
                          alpha: K::Elem,
                          app: Ptr<*const K::Elem>, bpp: Ptr<*const K::Elem>,
                          beta: K::Elem,
-                         c: Ptr<*mut K::Elem>, rsc: isize, csc: isize)
+                         c: Ptr<*mut K::Elem>, rsc: isize, csc: isize,
+                         tp: ThreadPoolCtx, thread_config: LoopThreadConfig)
     where K: GemmKernel,
 {
     let mr = K::MR;
     let nr = K::NR;
-    // make a mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
-    assert!(mr * nr * size_of::<K::Elem>() <= 256 && K::align_to() <= 32);
-    let mut mask_buf = [0u8; 256 + 31];
-    let mask_ptr = align_ptr(32, mask_buf.as_mut_ptr()) as *mut K::Elem;
+    // check for the mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
+    assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE && K::align_to() <= KERNEL_MAX_ALIGN);
 
     // LOOP 2: through micropanels in packed `b` (B~, C)
-    for (l2, nr_) in range_chunk(nc, nr) {
-        let bpp = bpp.stride_offset(1, kc * nr * l2);
-        let c = c.stride_offset(csc, nr * l2);
+    range_chunk(nc, nr)
+        .parallel(thread_config.loop2, tp)
+        .thread_local(|_i, _nt| {
+            MASK_BUF.with(|buf| {
+                let ptr = buf.borrow_mut().as_mut_ptr();
+                let mask_ptr = align_ptr(32, ptr) as *mut K::Elem;
+                mask_ptr
+            })
+        })
+        .for_each(move |_tp, &mut mask_ptr, l2, nr_| {
+            let bpp = bpp.stride_offset(1, kc * nr * l2);
+            let c = c.stride_offset(csc, nr * l2);
 
-        // LOOP 1: through micropanels in packed `a` while `b` is constant (A~, C)
-        for (l1, mr_) in range_chunk(mc, mr) {
-            let app = app.stride_offset(1, kc * mr * l1);
-            let c = c.stride_offset(rsc, mr * l1);
+            // LOOP 1: through micropanels in packed `a` while `b` is constant (A~, C)
+            for (l1, mr_) in range_chunk(mc, mr) {
+                let app = app.stride_offset(1, kc * mr * l1);
+                let c = c.stride_offset(rsc, mr * l1);
 
-            // GEMM KERNEL
-            // NOTE: For the rust kernels, it performs better to simply
-            // always use the masked kernel function!
-            if K::always_masked() || nr_ < nr || mr_ < mr {
-                masked_kernel::<_, K>(kc, alpha, &*app.ptr(), &*bpp.ptr(),
-                                      beta, &mut *c.ptr(), rsc, csc,
-                                      mr_, nr_, mask_ptr);
-                continue;
-            } else {
-                K::kernel(kc, alpha, app.ptr(), bpp.ptr(), beta, c.ptr(), rsc, csc);
+                // GEMM KERNEL
+                // NOTE: For the rust kernels, it performs better to simply
+                // always use the masked kernel function!
+                if K::always_masked() || nr_ < nr || mr_ < mr {
+                    masked_kernel::<_, K>(kc, alpha, &*app.ptr(), &*bpp.ptr(),
+                                          beta, &mut *c.ptr(), rsc, csc,
+                                          mr_, nr_, mask_ptr);
+                    continue;
+                } else {
+                    K::kernel(kc, alpha, app.ptr(), bpp.ptr(), beta, c.ptr(), rsc, csc);
+                }
             }
-        }
-    }
+        });
 }
 
 /// Allocate a vector of uninitialized data to be used for both packing buffers.
@@ -272,8 +306,10 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 /// but we can make them smaller if the matrix is smaller than this (just ensure
 /// we have rounded up to a multiple of the kernel size).
 ///
-/// Return packing buffer and offset to start of b
-unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize) -> (Alloc<K::Elem>, usize)
+/// na: Number of buffers to alloc for A
+///
+/// Return packing buffer and size of A~ (The offset to B~ is A~ size times `na`).
+unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize, na: usize) -> (Alloc<K::Elem>, usize)
     where K: GemmKernel,
 {
     // max alignment requirement is a multiple of min(MR, NR) * sizeof<Elem>
@@ -283,14 +319,16 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize) -> (Alloc<K::Elem
     let n = min(n, K::nc());
     // round up k, n to multiples of mr, nr
     // round up to multiple of kc
+    debug_assert_ne!(na, 0);
+    debug_assert!(na <= 128);
     let apack_size = k * round_up_to(m, K::MR);
     let bpack_size = k * round_up_to(n, K::NR);
-    let nelem = apack_size + bpack_size;
+    let nelem = apack_size * na + bpack_size;
 
     dprint!("packed nelem={}, apack={}, bpack={},
-             m={} k={} n={}",
+             m={} k={} n={}, na={}",
              nelem, apack_size, bpack_size,
-             m,k,n);
+             m,k,n, na);
 
     (Alloc::new(nelem, K::align_to()), apack_size)
 }

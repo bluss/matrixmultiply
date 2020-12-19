@@ -29,6 +29,9 @@ harness = false
 [dependencies]
 rawpointer = "0.2"
 
+thread-tree = { version = "0.3", optional = true }
+once_cell = { version = "1.5", optional = true }
+
 [dev-dependencies]
 bencher = "0.1.2"
 itertools = "0.8"
@@ -36,6 +39,7 @@ itertools = "0.8"
 [features]
 default = ["std"]
 
+threading = ["thread-tree", "std", "once_cell"]
 std = []
 
 [profile.release]

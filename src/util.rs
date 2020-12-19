@@ -8,6 +8,7 @@
 
 use core::cmp::min;
 
+#[derive(Copy, Clone)]
 pub struct RangeChunk { i: usize, n: usize, chunk: usize }
 
 /// Create an iterator that splits `n` in chunks of size `chunk`;
@@ -42,4 +43,26 @@ pub fn round_up_to(x: usize, multiple_of: usize) -> usize {
     let (mut d, r) = (x / multiple_of, x % multiple_of);
     if r > 0 { d += 1; }
     d * multiple_of
+}
+
+/// Create an iterator that splits `n` in chunks of size `chunk`;
+/// the last item can be an uneven chunk.
+///
+/// And splits the iterator in `total` parts and only iterates the `index`th part of it
+pub fn range_chunk_part(n: usize, chunk: usize, index: usize, total: usize) -> RangeChunk {
+    debug_assert_ne!(total, 0);
+
+    // round up
+    let mut nchunks = n / chunk;
+    nchunks += (n % chunk != 0) as usize;
+
+    // chunks per thread
+    // round up
+    let mut chunks_per = nchunks / total;
+    chunks_per += (nchunks % total != 0) as usize;
+
+    let i = chunks_per * index;
+    let nn = min(n, (i + chunks_per) * chunk).saturating_sub(i * chunk);
+
+    RangeChunk { i, n: nn, chunk }
 }

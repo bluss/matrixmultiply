@@ -109,5 +109,5 @@ mod x86;
 mod dgemm_kernel;
 mod sgemm_kernel;
 
-pub use gemm::dgemm;
-pub use gemm::sgemm;
+pub use crate::gemm::dgemm;
+pub use crate::gemm::sgemm;

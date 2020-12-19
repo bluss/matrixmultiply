@@ -14,7 +14,7 @@ macro_rules! mat_mul {
     ($modname:ident, $gemm:ident, $(($name:ident, $m:expr, $n:expr, $k:expr))+) => {
         mod $modname {
             use bencher::{Bencher};
-            use $gemm;
+            use crate::$gemm;
             $(
             pub fn $name(bench: &mut Bencher)
             {
@@ -101,7 +101,7 @@ macro_rules! gemm_layout {
         mod $modname {
             use bencher::{Bencher};
             use super::Layout::{self, *};
-            use $gemm;
+            use crate::$gemm;
             $(
 
             fn base(bench: &mut Bencher, al: Layout, bl: Layout, cl: Layout)

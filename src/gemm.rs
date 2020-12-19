@@ -10,17 +10,17 @@ use core::cmp::min;
 use core::mem::size_of;
 use core::ptr::copy_nonoverlapping;
 
-use aligned_alloc::Alloc;
+use crate::aligned_alloc::Alloc;
 
-use util::range_chunk;
-use util::round_up_to;
+use crate::util::range_chunk;
+use crate::util::round_up_to;
 
-use kernel::ConstNum;
-use kernel::Element;
-use kernel::GemmKernel;
-use kernel::GemmSelect;
-use sgemm_kernel;
-use dgemm_kernel;
+use crate::kernel::ConstNum;
+use crate::kernel::Element;
+use crate::kernel::GemmKernel;
+use crate::kernel::GemmSelect;
+use crate::sgemm_kernel;
+use crate::dgemm_kernel;
 use rawpointer::PointerExt;
 
 /// General matrix multiplication (f32)

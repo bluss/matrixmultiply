@@ -6,10 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use kernel::GemmKernel;
-use kernel::GemmSelect;
-use kernel::{U4, U8};
-use archparam;
+use crate::kernel::GemmKernel;
+use crate::kernel::GemmSelect;
+use crate::kernel::{U4, U8};
+use crate::archparam;
 
 
 #[cfg(target_arch="x86")]
@@ -17,7 +17,7 @@ use core::arch::x86::*;
 #[cfg(target_arch="x86_64")]
 use core::arch::x86_64::*;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-use x86::{FusedMulAdd, AvxMulAdd, SMultiplyAdd};
+use crate::x86::{FusedMulAdd, AvxMulAdd, SMultiplyAdd};
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelAvx;
@@ -500,7 +500,7 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
 mod tests {
     use super::*;
     use std::vec;
-    use aligned_alloc::Alloc;
+    use crate::aligned_alloc::Alloc;
 
     fn aligned_alloc<K>(elt: K::Elem, n: usize) -> Alloc<K::Elem>
         where K: GemmKernel,

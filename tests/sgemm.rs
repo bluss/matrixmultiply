@@ -12,6 +12,8 @@ use itertools::{
 };
 use core::fmt::{Display, Debug};
 
+const FAST_TEST: Option<&'static str> = option_env!("MMTEST_FAST_TEST");
+
 trait Float : Copy + Display + Debug + PartialEq {
     fn zero() -> Self;
     fn one() -> Self;
@@ -104,8 +106,11 @@ fn test_gemm_strides<F>() where F: Gemm + Float {
     for n in 0..20 {
         test_strides::<F>(n, n, n);
     }
-    for n in (3..12).map(|x| x * 7) {
-        test_strides::<F>(n, n, n);
+
+    if FAST_TEST.is_none() {
+        for n in (3..12).map(|x| x * 7) {
+            test_strides::<F>(n, n, n);
+        }
     }
 
     test_strides::<F>(8, 12, 16);
@@ -123,17 +128,19 @@ fn test_gemm<F>() where F: Gemm + Float {
             test_mul_with_id::<F>(i, j, true);
         }
     }
-    /*
-    */
+
     test_mul_with_id::<F>(17, 257, false);
     test_mul_with_id::<F>(24, 512, false);
+
     for i in 0..10 {
         for j in 0..10 {
             test_mul_with_id::<F>(i * 4, j * 4, true);
         }
     }
+    
     test_mul_with_id::<F>(266, 265, false);
     test_mul_id_with::<F>(4, 4, true);
+
     for i in 0..12 {
         for j in 0..12 {
             test_mul_id_with::<F>(i, j, true);
@@ -154,6 +161,10 @@ fn test_gemm<F>() where F: Gemm + Float {
 fn test_mul_with_id<F>(m: usize, n: usize, small: bool)
     where F: Gemm + Float
 {
+    if !small && FAST_TEST.is_some() {
+        return;
+    }
+
     let (m, k, n) = (m, n, n);
     let mut a = vec![F::zero(); m * k]; 
     let mut b = vec![F::zero(); k * n];
@@ -202,6 +213,10 @@ fn test_mul_with_id<F>(m: usize, n: usize, small: bool)
 fn test_mul_id_with<F>(k: usize, n: usize, small: bool) 
     where F: Gemm + Float
 {
+    if !small && FAST_TEST.is_some() {
+        return;
+    }
+
     let (m, k, n) = (k, k, n);
     let mut a = vec![F::zero(); m * k]; 
     let mut b = vec![F::zero(); k * n];
@@ -248,6 +263,10 @@ fn test_mul_id_with<F>(k: usize, n: usize, small: bool)
 fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
     where F: Gemm + Float
 {
+    if !small && FAST_TEST.is_some() {
+        return;
+    }
+
     let (m, k, n) = (m, k, n);
     let mut a = vec![F::zero(); m * k]; 
     let mut b = vec![F::zero(); k * n];

@@ -1,0 +1,125 @@
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+name: Continuous integration
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      matrix:
+        include:
+          - rust: 1.28.0  # MSRV
+            experimental: false
+            target: x86_64-unknown-linux-gnu
+            deps: true
+          - rust: 1.42.0
+            experimental: false
+            target: x86_64-unknown-linux-gnu
+            deps: true
+          - rust: stable
+            experimental: false
+            target: x86_64-unknown-linux-gnu
+            deps: true
+          - rust: nightly
+            experimental: false
+            target: x86_64-unknown-linux-gnu
+            mmtest_feature: avx
+            deps: true
+          - rust: nightly
+            target: x86_64-unknown-linux-gnu
+            mmtest_feature: fma
+            experimental: false
+            deps: true
+          - rust: nightly
+            target: i686-unknown-linux-gnu
+            deps: |
+              sudo apt-get update
+              sudo apt-get install -y gcc-multilib
+            experimental: false
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+      - name: Install dependencies
+        run: ${{ matrix.deps }}
+      - name: Tests
+        run: |
+          rustc -C target-cpu=native --print cfg
+          cargo build -v --features "${{ matrix.features }}" --target "${{ matrix.target }}"
+          cargo test -v --no-fail-fast --features "${{ matrix.features }}" --target "${{ matrix.target }}"
+          cargo test -v --release --no-fail-fast --features "${{ matrix.features }}" --target "${{ matrix.target }}"
+      - name: Test specific feature
+        if: ${{ matrix.mmtest_feature }}
+        env:
+          MMTEST_FEATURE: ${{ matrix.mmtest_feature }}
+          MMTEST_ENSUREFEATURE: 1
+        run: |
+          cargo test -v --no-fail-fast
+
+  nostd-build:
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      matrix:
+        include:
+          - rust: 1.36.0  # MSRV
+            experimental: false
+            target: thumbv6m-none-eabi
+          - rust: stable
+            experimental: false
+            target: thumbv6m-none-eabi
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+      - name: Tests
+        run: |
+          cargo rustc "--target=${{ matrix.target }}" --manifest-path=ensure_no_std/Cargo.toml
+
+  cross_test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rust: stable
+            target: aarch64-unknown-linux-gnu
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+      - name: Cache cargo plugins
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/bin/
+          key: ${{ runner.os }}-cargo-plugins
+      - name: Install cross
+        run: cargo install cross || true
+      - name: Tests
+        run: cross test --target "${{ matrix.target }}"
+        env:
+          MMTEST_FAST_TEST: 1
+

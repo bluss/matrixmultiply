@@ -147,20 +147,22 @@ impl<G, R> RangeChunkParallel<'_, G>
             }
         }
 
+        debug_assert!(self.nthreads <= 4, "this method does not support nthreads > 4, got {}",
+                      self.nthreads);
         let pool = self.pool;
-        let nthreads = self.nthreads;
-        let thread_local = self.thread_local;
         let range = self.range;
-
-        if nthreads > 1 {
-            let nthreads = 2;
-            let for_each = &for_each;
-            let thread_local = &thread_local;
-            pool.join(move |ctx| inner(range, 0, nthreads, ctx, thread_local, for_each),
-                      move |ctx| inner(range, 1, nthreads, ctx, thread_local, for_each));
+        let for_each = &for_each;
+        let local = &self.thread_local;
+        let nthreads = min(self.nthreads as usize, 4);
+        let f = move |ctx: ThreadPoolCtx<'_>, i| inner(range, i, nthreads, ctx, local, for_each);
+        if nthreads >= 4 {
+            pool.join4(&f);
+        } else if nthreads >= 3 {
+            pool.join3l(&f);
+        } else if nthreads >= 2 {
+            pool.join(|ctx| f(ctx, 0), |ctx| f(ctx, 1));
         } else {
-            let nthreads = 1;
-            inner(range, 0, nthreads, pool, &thread_local, &for_each);
+            f(pool, 0)
         }
     }
 

@@ -1,9 +1,6 @@
-#![cfg(feature="std")]
-
 //! Run this executable to benchmark sgemm and dgemm for arbitrary size matrices
 //! See --help for usage examples.  Remember to run in release mode.
 
-extern crate std;
 extern crate itertools;
 extern crate matrixmultiply;
 
@@ -12,6 +9,32 @@ use std::fmt::{Display, Debug};
 use itertools::zip;
 
 use matrixmultiply::{sgemm, dgemm};
+use itertools::Itertools;
+
+fn main() -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    eprintln!("Warning: running benchmark with debug assertions");
+
+    let opts = match parse_args() {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("Usage: <command> m-size k-size n-size [float-type layout-types csv-format]");
+            eprintln!("Example: <command> 1000 1000 1000 f64 fcf");
+            eprintln!();
+            eprintln!("csv headers: m,k,n,layout,type,average_ns,minimum_ns,median_ns,samples,gflops");
+            eprintln!();
+            return Err(format!("Error parsing arguments: {}", e));
+        }
+    };
+
+    if opts.use_f32 {
+        test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv)
+    } else {
+        test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv)
+    }
+    Ok(())
+}
+
 
 trait Float : Copy + Display + Debug + PartialEq {
     fn zero() -> Self;
@@ -91,6 +114,7 @@ struct Options {
     n: usize,
     layout: [Layout; 3],
     use_f32: bool,
+    use_csv: bool,
 }
 
 fn parse_args() -> Result<Options, String> {
@@ -98,11 +122,11 @@ fn parse_args() -> Result<Options, String> {
     let mut args = std::env::args();
     let _ = args.next();
     opts.m = args.next().ok_or("Expected argument".to_string())?
-        .parse::<_>().unwrap();
+        .parse::<usize>().map_err(|e| e.to_string())?;
     opts.k = args.next().ok_or("Expected argument".to_string())?
-        .parse::<_>().unwrap();
+        .parse::<usize>().map_err(|e| e.to_string())?;
     opts.n = args.next().ok_or("Expected argument".to_string())?
-        .parse::<_>().unwrap();
+        .parse::<usize>().map_err(|e| e.to_string())?;
     if let Some(arg) = args.next() {
         if arg == "f32" {
             opts.use_f32 = true;
@@ -120,31 +144,17 @@ fn parse_args() -> Result<Options, String> {
             {
                 *elt = if layout_arg == 'c' { Layout::C } else { Layout::F };
             }
+            // csv
+            if let Some(arg) = args.next() {
+                if arg == "csv" {
+                    opts.use_csv = true;
+                } else {
+                    Err(format!("Unknown argument {}", arg))?;
+                }
+            }
         }
     }
     Ok(opts)
-}
-
-fn main() -> Result<(), String> {
-    #[cfg(debug_assertions)]
-    eprintln!("Warning: running benchmark with debug assertions");
-
-    let opts = match parse_args() {
-        Ok(o) => o,
-        Err(e) => {
-            eprintln!("Usage: <command> m-size k-size n-size float-type layout-types");
-            eprintln!("Example: <command> 1000 1000 1000 f64 fcf");
-            eprintln!();
-            return Err(format!("Error parsing arguments: {}", e));
-        }
-    };
-
-    if opts.use_f32 {
-        test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout)
-    } else {
-        test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout)
-    }
-    Ok(())
 }
 
 //
@@ -169,7 +179,7 @@ impl Default for Layout {
 }
 
 
-fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3])
+fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: bool)
     where F: Gemm + Float
 {
     let (m, k, n) = (m, k, n);
@@ -199,9 +209,11 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3])
     let (rs_b, cs_b) = lb.strides_scaled(k, n, mstrideb);
     let (rs_c1, cs_c1) = lc1.strides_scaled(m, n, mstridec);
 
-    println!("Test matrix a : {} × {} layout: {:?} strides {}, {}", m, k, la, rs_a, cs_a);
-    println!("Test matrix b : {} × {} layout: {:?} strides {}, {}", k, n, lb, rs_b, cs_b);
-    println!("Test matrix c : {} × {} layout: {:?} strides {}, {}", m, n, lc1, rs_c1, cs_c1);
+    if !use_csv {
+        println!("Test matrix a : {} × {} layout: {:?} strides {}, {}", m, k, la, rs_a, cs_a);
+        println!("Test matrix b : {} × {} layout: {:?} strides {}, {}", k, n, lb, rs_b, cs_b);
+        println!("Test matrix c : {} × {} layout: {:?} strides {}, {}", m, n, lc1, rs_c1, cs_c1);
+    }
 
     let statistics = measure(10, || {
         unsafe {
@@ -222,16 +234,27 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3])
     });
              //std::any::type_name::<F>(), fmt_thousands_sep(elapsed_ns, ' '));
     //println!("{:#?}", statistics);
-    print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, std::any::type_name::<F>(),
-           fmt_thousands_sep(statistics.average, " "));
-    print!(" [minimum: {} ns .. median {} ns .. sample count {}]", 
-           fmt_thousands_sep(statistics.minimum, " "),
-           fmt_thousands_sep(statistics.median, " "),
-           statistics.samples.len());
-    // by flop / s = 2 M N K / time
     let gflop = (2 * m * n * k) as f64 / statistics.average as f64;
-    print!("    {:.2} Gflop/s", gflop);
-    println!();
+    if !use_csv {
+        print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, std::any::type_name::<F>(),
+               fmt_thousands_sep(statistics.average, " "));
+        print!(" [minimum: {} ns .. median {} ns .. sample count {}]", 
+               fmt_thousands_sep(statistics.minimum, " "),
+               fmt_thousands_sep(statistics.median, " "),
+               statistics.samples.len());
+        // by flop / s = 2 M N K / time
+        print!("    {:.2} Gflop/s", gflop);
+        println!();
+    } else {
+        print!("{},{},{},", m, k, n);
+        print!("{:?},", layouts.iter().format(""));
+        print!("{},", std::any::type_name::<F>());
+        print!("{},{},{},{},", statistics.average, statistics.minimum, statistics.median,
+               statistics.samples.len());
+        print!("{}", gflop);
+        println!();
+    }
+
 }
 
 #[derive(Default, Debug)]

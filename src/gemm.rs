@@ -180,7 +180,7 @@ unsafe fn gemm_loop<K>(
     let c = Ptr(c);
 
     let thread_config = LoopThreadConfig::new::<K>(m, k, n, *NTHREADS);
-    let nap = thread_config.loop3 as usize; // number of A packing buffers
+    let nap = thread_config.num_pack_a();
 
     let (mut packing_buffer, ap_size) = make_packing_buffer::<K>(m, k, n, nap);
     let app = Ptr(packing_buffer.ptr_mut());

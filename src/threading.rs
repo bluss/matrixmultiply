@@ -99,5 +99,9 @@ impl LoopThreadConfig {
             }
         }
     }
+
+    /// Number of packing buffers for A
+    #[inline(always)]
+    pub(crate) fn num_pack_a(&self) -> usize { self.loop3 as usize }
 }
 

@@ -93,9 +93,23 @@ pub(crate) struct RangeChunkParallel<'a, G> {
 }
 
 impl<'a, G> RangeChunkParallel<'a, G> {
+    #[cfg(feature="threading")]
     /// Set thread local setup function - called once per thread to setup thread local data.
     pub(crate) fn thread_local<G2, R>(self, func: G2) -> RangeChunkParallel<'a, G2>
         where G2: Fn(usize, usize) -> R + Sync
+    {
+        RangeChunkParallel {
+            nthreads: self.nthreads,
+            pool: self.pool,
+            thread_local: func,
+            range: self.range,
+        }
+    }
+
+    #[cfg(not(feature="threading"))]
+    /// Set thread local setup function - called once per thread to setup thread local data.
+    pub(crate) fn thread_local<G2, R>(self, func: G2) -> RangeChunkParallel<'a, G2>
+        where G2: FnOnce(usize, usize) -> R + Sync
     {
         RangeChunkParallel {
             nthreads: self.nthreads,
@@ -108,7 +122,7 @@ impl<'a, G> RangeChunkParallel<'a, G> {
 
 #[cfg(not(feature="threading"))]
 impl<G, R> RangeChunkParallel<'_, G>
-    where G: Fn(usize, usize) -> R + Sync,
+    where G: FnOnce(usize, usize) -> R + Sync,
 {
     pub(crate) fn for_each<F>(self, for_each: F)
         where F: Fn(ThreadPoolCtx<'_>, &mut R, usize, usize) + Sync,

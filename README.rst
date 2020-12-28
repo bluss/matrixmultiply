@@ -17,10 +17,7 @@ only one operation: the general matrix-matrix multiplication (“gemm”).
 
 .. _BLIS: https://github.com/flame/blis
 
-|build_status|_ |crates|_
-
-.. |build_status| image:: https://travis-ci.org/bluss/matrixmultiply.svg?branch=master
-.. _build_status: https://travis-ci.org/bluss/matrixmultiply
+|crates|_
 
 .. |crates| image:: https://meritbadge.herokuapp.com/matrixmultiply
 .. _crates: https://crates.io/crates/matrixmultiply

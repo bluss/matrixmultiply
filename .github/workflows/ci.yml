@@ -21,31 +21,26 @@ jobs:
           - rust: 1.28.0  # MSRV
             experimental: true
             target: x86_64-unknown-linux-gnu
-            deps: true
           - rust: 1.42.0
             experimental: false
             target: x86_64-unknown-linux-gnu
-            deps: true
           - rust: stable
             experimental: false
             target: x86_64-unknown-linux-gnu
             features: threading
-            deps: true
             test_examples: yes
           - rust: nightly
             experimental: false
             target: x86_64-unknown-linux-gnu
             mmtest_feature: avx
-            deps: true
           - rust: nightly
             target: x86_64-unknown-linux-gnu
             features: threading
             mmtest_feature: fma
             experimental: false
-            deps: true
           - rust: nightly
             target: i686-unknown-linux-gnu
-            deps: |
+            install_deps: |
               sudo apt-get update
               sudo apt-get install -y gcc-multilib
             experimental: false
@@ -59,7 +54,8 @@ jobs:
           target: ${{ matrix.target }}
           override: true
       - name: Install dependencies
-        run: ${{ matrix.deps }}
+        if: matrix.install_deps
+        run: ${{ matrix.install_deps }}
       - name: Tests
         run: |
           rustc -C target-cpu=native --print cfg
@@ -67,11 +63,11 @@ jobs:
           cargo test -v --tests --lib --no-fail-fast --features "${{ matrix.features }}" --target "${{ matrix.target }}"
           cargo test -v  --tests --lib --release --no-fail-fast --features "${{ matrix.features }}" --target "${{ matrix.target }}"
       - name: Test examples
-        if: ${{ matrix.test_examples }}
+        if: matrix.test_examples
         run: |
           cargo test -v --examples --features "${{ matrix.features }}" --target "${{ matrix.target }}"
       - name: Test specific feature
-        if: ${{ matrix.mmtest_feature }}
+        if: matrix.mmtest_feature
         env:
           MMTEST_FEATURE: ${{ matrix.mmtest_feature }}
           MMTEST_ENSUREFEATURE: 1

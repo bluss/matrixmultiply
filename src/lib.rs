@@ -83,9 +83,11 @@
 //!
 //! ### `threading`
 //!
-//! `threading` is optional
+//! `threading` is an optional crate feature
 //!
-//! Threading enables multithreading for the operations.
+//! Threading enables multithreading for the operations. The environment variable
+//! `MATMUL_NUM_THREADS` decides how many threads are used at maximum. At the moment 1-4 are
+//! supported and the default is 1.
 //!
 //! ## Other Notes
 //!

@@ -22,7 +22,7 @@ use crate::kernel::ConstNum;
 use crate::kernel::Element;
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
-use crate::threading::{NTHREADS, THREADPOOL, ThreadPoolCtx, LoopThreadConfig};
+use crate::threading::{get_thread_pool, ThreadPoolCtx, LoopThreadConfig};
 use crate::sgemm_kernel;
 use crate::dgemm_kernel;
 use rawpointer::PointerExt;
@@ -180,14 +180,13 @@ unsafe fn gemm_loop<K>(
     let b = Ptr(b);
     let c = Ptr(c);
 
-    let thread_config = LoopThreadConfig::new::<K>(m, k, n, *NTHREADS);
+    let (nthreads, tp) = get_thread_pool();
+    let thread_config = LoopThreadConfig::new::<K>(m, k, n, nthreads);
     let nap = thread_config.num_pack_a();
 
     let (mut packing_buffer, ap_size) = make_packing_buffer::<K>(m, k, n, nap);
     let app = Ptr(packing_buffer.ptr_mut());
     let bpp = app.add(ap_size * nap);
-
-    let tp = THREADPOOL.top();
 
     // LOOP 5: split n into nc parts (B, C)
     for (l5, nc) in range_chunk(n, knc) {

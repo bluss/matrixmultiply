@@ -11,12 +11,15 @@ pub use thread_tree::ThreadTree as ThreadPool;
 #[cfg(feature="threading")]
 pub use thread_tree::ThreadTreeCtx as ThreadPoolCtx;
 
+use crate::kernel::GemmKernel;
+
+
 /// Dummy threadpool
 #[cfg(not(feature="threading"))]
 pub(crate) struct ThreadPool;
 
 #[cfg(not(feature="threading"))]
-pub type ThreadPoolCtx<'a> = &'a ();
+pub(crate) type ThreadPoolCtx<'a> = &'a ();
 
 #[cfg(not(feature="threading"))]
 impl ThreadPool {
@@ -24,13 +27,31 @@ impl ThreadPool {
     pub(crate) fn top(&self) -> ThreadPoolCtx<'_> { &() }
 }
 
-use crate::kernel::GemmKernel;
+pub(crate) fn get_thread_pool<'a>() -> (usize, ThreadPoolCtx<'a>) {
+    let reg = &*REGISTRY;
+    (reg.nthreads, reg.thread_pool().top())
+}
+
+struct Registry {
+    nthreads: usize,
+    #[cfg(feature="threading")]
+    thread_pool: Box<ThreadPool>,
+}
+
+impl Registry {
+    fn thread_pool(&self) -> &ThreadPool {
+        #[cfg(feature="threading")]
+        return &*REGISTRY.thread_pool;
+        #[cfg(not(feature="threading"))]
+        return &ThreadPool;
+    }
+}
 
 #[cfg(not(feature="threading"))]
-pub(crate) const NTHREADS: &'static usize = &1;
+const REGISTRY: &'static Registry = &Registry { nthreads: 1 };
 
 #[cfg(feature="threading")]
-pub(crate) static NTHREADS: Lazy<usize> = Lazy::new(|| {
+static REGISTRY: Lazy<Registry> = Lazy::new(|| {
     let var = ::std::env::var("MATMUL_NUM_THREADS").ok();
     let threads = match var {
         Some(s) if !s.is_empty() => {
@@ -43,22 +64,18 @@ pub(crate) static NTHREADS: Lazy<usize> = Lazy::new(|| {
         }
         _otherwise => 1,
     };
-    threads
-});
 
-
-#[cfg(not(feature="threading"))]
-pub(crate) const THREADPOOL: ThreadPool = ThreadPool;
-
-#[cfg(feature="threading")]
-pub(crate) static THREADPOOL: Lazy<Box<ThreadPool>> = Lazy::new(|| {
-    let threads = *NTHREADS;
-    if threads <= 1 {
+    let tp = if threads <= 1 {
         Box::new(ThreadPool::new_level0())
     } else if threads <= 3 {
         ThreadPool::new_with_level(1)
     } else {
         ThreadPool::new_with_level(2)
+    };
+
+    Registry {
+        nthreads: threads,
+        thread_pool: tp,
     }
 });
 

@@ -7,7 +7,7 @@
 // except according to those terms.
 
 #[cfg(feature="std")]
-use core::cell::RefCell;
+use core::cell::UnsafeCell;
 use core::cmp::min;
 use core::mem::size_of;
 use core::ptr::copy_nonoverlapping;
@@ -239,13 +239,18 @@ unsafe fn gemm_loop<K>(
 // set up buffer for masked (redirected output of) kernel
 const KERNEL_MAX_SIZE: usize = 8 * 8 * 4;
 const KERNEL_MAX_ALIGN: usize = 32;
-const KERNEL_MASK_BUF_SIZE: usize = KERNEL_MAX_SIZE + KERNEL_MAX_ALIGN - 1;
+
+#[repr(align(32))]
+struct MaskBuffer {
+    buffer: [u8; KERNEL_MAX_SIZE],
+}
 
 // Use thread local if we can; this is faster even in the single threaded case because
 // it is possible to skip zeroing out the array.
 #[cfg(feature = "std")]
 thread_local! {
-    pub static MASK_BUF: RefCell<[u8; KERNEL_MASK_BUF_SIZE]> = RefCell::new([0; KERNEL_MASK_BUF_SIZE]);
+    static MASK_BUF: UnsafeCell<MaskBuffer> =
+        UnsafeCell::new(MaskBuffer { buffer: [0; KERNEL_MAX_SIZE] });
 }
 
 /// Loops 1 and 2 around the µ-kernel
@@ -269,7 +274,7 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE && K::align_to() <= KERNEL_MAX_ALIGN);
 
     #[cfg(not(feature = "std"))]
-    let mut mask_buf: [u8; KERNEL_MASK_BUF_SIZE] = [0; KERNEL_MASK_BUF_SIZE];
+    let mut mask_buf = MaskBuffer { buffer: [0; KERNEL_MAX_SIZE] };
 
     // LOOP 2: through micropanels in packed `b` (B~, C)
     range_chunk(nc, nr)
@@ -279,13 +284,14 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
             #[cfg(not(feature = "std"))]
             {
                 debug_assert_eq!(_nt, 1);
-                ptr = mask_buf.as_mut_ptr();
+                ptr = mask_buf.buffer.as_mut_ptr();
             }
             #[cfg(feature = "std")]
             {
-                ptr = MASK_BUF.with(|buf| buf.borrow_mut().as_mut_ptr());
+                ptr = MASK_BUF.with(|buf| (*buf.get()).buffer.as_mut_ptr());
             }
-            align_ptr(KERNEL_MAX_ALIGN, ptr) as *mut K::Elem
+            debug_assert_eq!(ptr as usize % KERNEL_MAX_ALIGN, 0);
+            ptr as *mut K::Elem
         })
         .for_each(move |_tp, &mut mask_ptr, l2, nr_| {
             let bpp = bpp.stride_offset(1, kc * nr * l2);
@@ -343,17 +349,6 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize, na: usize) -> (Al
              m,k,n, na);
 
     (Alloc::new(nelem, K::align_to()), apack_size)
-}
-
-/// offset the ptr forwards to align to a specific byte count
-unsafe fn align_ptr<U>(align_to: usize, mut ptr: *mut U) -> *mut U {
-    if align_to != 0 {
-        let cur_align = ptr as usize % align_to;
-        if cur_align != 0 {
-            ptr = ptr.offset(((align_to - cur_align) / size_of::<U>()) as isize);
-        }
-    }
-    ptr
 }
 
 /// Pack matrix into `pack`

@@ -107,37 +107,41 @@ impl LoopThreadConfig {
                 return default_config;
             }
 
-            // use a heuristic to try not to use too many threads for smaller matrices
-            let size_factor = m * k + k * n;
-            let thread_factor = 1 << 16;
-            // pure guesswork in terms of what the default should be
-            let arch_factor = if cfg!(any(target_arch="arm", target_arch="aarch64")) {
-                20
-            } else {
-                1
-            };
+            Self::new_impl(m, k, n, max_threads, K::mc())
+        }
+    }
 
-            // At the moment only a configuration of 1, 2, or 4 threads is supported.
-            //
-            // Prefer to split Loop 3 if only 2 threads are available, (because it was better in a
-            // square matrix benchmark).
-            let kmc = K::mc();
+    #[cfg(feature="threading")]
+    fn new_impl(m: usize, k: usize, n: usize, max_threads: usize, kmc: usize) -> Self {
+        // use a heuristic to try not to use too many threads for smaller matrices
+        let size_factor = m * k + k * n;
+        let thread_factor = 1 << 16;
+        // pure guesswork in terms of what the default should be
+        let arch_factor = if cfg!(any(target_arch="arm", target_arch="aarch64")) {
+            20
+        } else {
+            1
+        };
 
-            let matrix_max_threads = size_factor / (thread_factor / arch_factor);
-            let mut max_threads = max_threads.min(matrix_max_threads);
+        // At the moment only a configuration of 1, 2, or 4 threads is supported.
+        //
+        // Prefer to split Loop 3 if only 2 threads are available, (because it was better in a
+        // square matrix benchmark).
 
-            let loop3 = if max_threads >= 2 && m >= 3 * (kmc / 2) {
-                max_threads /= 2;
-                2
-            } else {
-                1
-            };
-            let loop2 = if max_threads >= 2 { 2 } else { 1 };
+        let matrix_max_threads = size_factor / (thread_factor / arch_factor);
+        let mut max_threads = max_threads.min(matrix_max_threads);
 
-            LoopThreadConfig {
-                loop3,
-                loop2,
-            }
+        let loop3 = if max_threads >= 2 && m >= 3 * (kmc / 2) {
+            max_threads /= 2;
+            2
+        } else {
+            1
+        };
+        let loop2 = if max_threads >= 2 { 2 } else { 1 };
+
+        LoopThreadConfig {
+            loop3,
+            loop2,
         }
     }
 

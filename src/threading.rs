@@ -62,7 +62,7 @@ static REGISTRY: Lazy<Registry> = Lazy::new(|| {
                 1
             }
         }
-        _otherwise => 1,
+        _otherwise => num_cpus::get_physical(),
     };
 
     let tp = if threads <= 1 {

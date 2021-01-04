@@ -87,7 +87,7 @@
 //!
 //! Threading enables multithreading for the operations. The environment variable
 //! `MATMUL_NUM_THREADS` decides how many threads are used at maximum. At the moment 1-4 are
-//! supported and the default is 1.
+//! supported and the default is the number of physical cpus (as detected by `num_cpus`).
 //!
 //! ## Other Notes
 //!

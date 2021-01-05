@@ -1,5 +1,6 @@
 [package]
 name = "matrixmultiply"
+edition = "2018"
 version = "0.2.4"
 authors = [
     "bluss",
@@ -28,6 +29,10 @@ harness = false
 [dependencies]
 rawpointer = "0.2"
 
+thread-tree = { version = "0.3", optional = true }
+once_cell = { version = "1.5", optional = true }
+num_cpus = { version = "1.13", optional = true }
+
 [dev-dependencies]
 bencher = "0.1.2"
 itertools = "0.8"
@@ -35,10 +40,13 @@ itertools = "0.8"
 [features]
 default = ["std"]
 
+threading = ["thread-tree", "std", "once_cell", "num_cpus"]
 std = []
 
 [profile.release]
+debug = true
 [profile.bench]
+debug = true
 
 [package.metadata.release]
 no-dev-version = true

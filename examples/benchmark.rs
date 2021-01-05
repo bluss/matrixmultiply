@@ -12,10 +12,14 @@ use matrixmultiply::{sgemm, dgemm};
 use itertools::Itertools;
 
 fn main() -> Result<(), String> {
+    run_main(std::env::args())
+}
+
+fn run_main(args: impl IntoIterator<Item=String>) -> Result<(), String> {
     #[cfg(debug_assertions)]
     eprintln!("Warning: running benchmark with debug assertions");
 
-    let opts = match parse_args() {
+    let opts = match parse_args(args) {
         Ok(o) => o,
         Err(e) => {
             eprintln!("Usage: <command> m-size k-size n-size [float-type layout-types csv-format]");
@@ -117,9 +121,9 @@ struct Options {
     use_csv: bool,
 }
 
-fn parse_args() -> Result<Options, String> {
+fn parse_args(args: impl IntoIterator<Item=String>) -> Result<Options, String> {
     let mut opts = Options::default();
-    let mut args = std::env::args();
+    let mut args = args.into_iter();
     let _ = args.next();
     opts.m = args.next().ok_or("Expected argument".to_string())?
         .parse::<usize>().map_err(|e| e.to_string())?;
@@ -329,3 +333,7 @@ fn fmt_thousands_sep(mut n: u64, sep: &str) -> String {
     output
 }
 
+#[test]
+fn test_benchmark() {
+    run_main("ignored 128 128 128 f64 fcc".split_whitespace().map(str::to_string)).unwrap();
+}

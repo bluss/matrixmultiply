@@ -12,7 +12,7 @@ pub(crate) struct AvxMulAdd;
 
 pub(crate) trait SMultiplyAdd {
     const IS_FUSED: bool;
-    unsafe fn multiply_add(__m256, __m256, __m256) -> __m256;
+    unsafe fn multiply_add(a: __m256, b: __m256, c: __m256) -> __m256;
 }
 
 impl SMultiplyAdd for AvxMulAdd {
@@ -33,7 +33,7 @@ impl SMultiplyAdd for FusedMulAdd {
 
 pub(crate) trait DMultiplyAdd {
     const IS_FUSED: bool;
-    unsafe fn multiply_add(__m256d, __m256d, __m256d) -> __m256d;
+    unsafe fn multiply_add(a: __m256d, b: __m256d, c: __m256d) -> __m256d;
 }
 
 impl DMultiplyAdd for AvxMulAdd {

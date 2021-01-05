@@ -60,6 +60,10 @@
 //!
 //! ## Features
 //!
+//! ### `std`
+//!
+//! `std` is enabled by default.
+//!
 //! This crate can be used without the standard library (`#![no_std]`) by
 //! disabling the default `std` feature. To do so, use this in your
 //! `Cargo.toml`:
@@ -77,10 +81,24 @@
 //! [`target-feature`](https://doc.rust-lang.org/rustc/codegen-options/index.html#target-feature)
 //! option to `rustc`.)
 //!
+//! ### `threading`
+//!
+//! `threading` is an optional crate feature
+//!
+//! Threading enables multithreading for the operations. The environment variable
+//! `MATMUL_NUM_THREADS` decides how many threads are used at maximum. At the moment 1-4 are
+//! supported and the default is the number of physical cpus (as detected by `num_cpus`).
+//!
 //! ## Other Notes
 //!
 //! The functions in this crate are thread safe, as long as the destination
 //! matrix is distinct.
+//!
+//! ## Rust Version
+//!
+//! This version requires Rust 1.41.1 or later; the crate follows a carefully
+//! considered upgrade policy, where updating the minimum Rust version is not a breaking
+//! change.
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.2/")]
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -90,8 +108,6 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate core;
 
-extern crate rawpointer;
-
 #[macro_use]
 mod debugmacros;
 #[macro_use]
@@ -99,6 +115,8 @@ mod loopmacros;
 mod archparam;
 mod gemm;
 mod kernel;
+mod ptr;
+mod threading;
 
 mod aligned_alloc;
 mod util;
@@ -109,5 +127,5 @@ mod x86;
 mod dgemm_kernel;
 mod sgemm_kernel;
 
-pub use gemm::dgemm;
-pub use gemm::sgemm;
+pub use crate::gemm::dgemm;
+pub use crate::gemm::sgemm;

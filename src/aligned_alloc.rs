@@ -1,5 +1,5 @@
 #[cfg(not(feature = "std"))]
-use alloc::alloc::{self, handle_alloc_error, Layout};
+use ::alloc::alloc::{self, handle_alloc_error, Layout};
 use core::{cmp, mem};
 #[cfg(feature = "std")]
 use std::alloc::{self, handle_alloc_error, Layout};

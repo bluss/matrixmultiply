@@ -113,14 +113,17 @@ jobs:
           target: ${{ matrix.target }}
           override: true
       - name: Cache cargo plugins
+        id: cache
         uses: actions/cache@v1
         with:
           path: ~/.cargo/bin/
           key: ${{ runner.os }}-cargo-plugins
       - name: Install cross
-        run: cargo install cross || true
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install cross
       - name: Tests
         run: cross test --target "${{ matrix.target }}"
         env:
           MMTEST_FAST_TEST: 1
+          RUSTFLAGS: -Copt-level=2
 

@@ -18,10 +18,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - rust: 1.28.0  # MSRV
-            experimental: true
-            target: x86_64-unknown-linux-gnu
-          - rust: 1.42.0
+          - rust: 1.41.1  # MSRV
             experimental: false
             target: x86_64-unknown-linux-gnu
           - rust: stable
@@ -80,7 +77,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - rust: 1.36.0  # MSRV
+          - rust: 1.41.1  # MSRV
             experimental: false
             target: thumbv6m-none-eabi
           - rust: stable

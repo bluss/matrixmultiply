@@ -238,7 +238,7 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: b
     });
              //std::any::type_name::<F>(), fmt_thousands_sep(elapsed_ns, ' '));
     //println!("{:#?}", statistics);
-    let gflop = (2 * m * n * k) as f64 / statistics.average as f64;
+    let gflop = (2. * m as f64 * n as f64 * k as f64 ) / statistics.average as f64;
     if !use_csv {
         print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, std::any::type_name::<F>(),
                fmt_thousands_sep(statistics.average, " "));

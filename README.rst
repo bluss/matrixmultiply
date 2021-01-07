@@ -9,11 +9,11 @@ Please read the `API documentation here`__
 __ https://docs.rs/matrixmultiply/
 
 
-This crate uses the same macro/microkernel approach to matrix multiplication as
-the BLIS_ project.
-
 We presently provide a few good microkernels portable and for x86-64, and
 only one operation: the general matrix-matrix multiplication (“gemm”).
+
+This crate was inspired by the tmacro/microkernel approach to matrix
+multiplication that is used by the BLIS_ project.
 
 .. _BLIS: https://github.com/flame/blis
 
@@ -41,6 +41,27 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 
 Recent Changes
 --------------
+
+- 0.3.0
+
+  - Implement initial support for threading using a bespoke thread pool with
+    little contention.
+    To use, enable feature ``threading`` (and configure number of threads with the
+    variable ``MATMUL_NUM_THREADS``).
+
+    Initial support is for up to 4 threads - will be updated with more
+    experience in coming versions.
+
+  - Added a better benchmarking program for arbitrary size and layout, see
+    ``examples/benchmark.rs`` for this; it supports csv output for better
+    recording of measurements
+
+  - Minimum supported rust version is 1.41.1 and the version update policy
+    has been updated.
+
+  - Updated to Rust 2018 edition
+
+  - Moved CI to github actions (so long travis and thanks for all the fish).
 
 - 0.2.4
 

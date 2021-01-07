@@ -53,12 +53,16 @@ impl Registry {
 const REGISTRY: &'static Registry = &Registry { nthreads: 1 };
 
 #[cfg(feature="threading")]
+/// Maximum (usefully) supported threads at the moment
+const MAX_THREADS: usize = 4;
+
+#[cfg(feature="threading")]
 static REGISTRY: Lazy<Registry> = Lazy::new(|| {
     let var = ::std::env::var("MATMUL_NUM_THREADS").ok();
     let threads = match var {
         Some(s) if !s.is_empty() => {
             if let Ok(nt) = usize::from_str(&s) {
-                1.max(nt)
+                nt
             } else {
                 eprintln!("Failed to parse MATMUL_NUM_THREADS");
                 1
@@ -66,6 +70,9 @@ static REGISTRY: Lazy<Registry> = Lazy::new(|| {
         }
         _otherwise => num_cpus::get_physical(),
     };
+
+    // Ensure threads in 1 <= threads <= MAX_THREADS
+    let threads = 1.max(threads).min(MAX_THREADS);
 
     let tp = if threads <= 1 {
         Box::new(ThreadPool::new_level0())

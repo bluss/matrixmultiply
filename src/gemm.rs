@@ -11,6 +11,7 @@ use core::cell::UnsafeCell;
 use core::cmp::min;
 use core::mem::size_of;
 use core::ptr::copy_nonoverlapping;
+use core::slice;
 
 use crate::aligned_alloc::Alloc;
 
@@ -291,9 +292,9 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
                 ptr = MASK_BUF.with(|buf| (*buf.get()).buffer.as_mut_ptr());
             }
             debug_assert_eq!(ptr as usize % KERNEL_MAX_ALIGN, 0);
-            ptr as *mut K::Elem
+            slice::from_raw_parts_mut(ptr as *mut K::Elem, KERNEL_MAX_SIZE / size_of::<K::Elem>())
         })
-        .for_each(move |_tp, &mut mask_ptr, l2, nr_| {
+        .for_each(move |_tp, mask_buf, l2, nr_| {
             let bpp = bpp.stride_offset(1, kc * nr * l2);
             let c = c.stride_offset(csc, nr * l2);
 
@@ -308,7 +309,7 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
                 if K::always_masked() || nr_ < nr || mr_ < mr {
                     masked_kernel::<_, K>(kc, alpha, &*app.ptr(), &*bpp.ptr(),
                                           beta, &mut *c.ptr(), rsc, csc,
-                                          mr_, nr_, mask_ptr);
+                                          mr_, nr_, mask_buf);
                     continue;
                 } else {
                     K::kernel(kc, alpha, app.ptr(), bpp.ptr(), beta, c.ptr(), rsc, csc);
@@ -432,11 +433,11 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
                               beta: T,
                               c: *mut T, rsc: isize, csc: isize,
                               rows: usize, cols: usize,
-                              mask_buf: *mut T)
+                              mask_buf: &mut [T])
     where K: GemmKernel<Elem=T>, T: Element,
 {
     // use column major order for `mask_buf`
-    K::kernel(k, alpha, a, b, T::zero(), mask_buf, 1, K::MR as isize);
+    K::kernel(k, alpha, a, b, T::zero(), mask_buf.as_mut_ptr(), 1, K::MR as isize);
     c_to_masked_ab_beta_c::<_, K>(beta, c, rsc, csc, rows, cols, &*mask_buf);
 }
 
@@ -447,14 +448,14 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
 unsafe fn c_to_masked_ab_beta_c<T, K>(beta: T,
                                       c: *mut T, rsc: isize, csc: isize,
                                       rows: usize, cols: usize,
-                                      mask_buf: &T)
+                                      mask_buf: &[T])
     where K: GemmKernel<Elem=T>, T: Element,
 {
     // note: use separate function here with `&T` argument for mask buf,
     // so that the compiler sees that `c` and `mask_buf` never alias.
     let mr = K::MR;
     let nr = K::NR;
-    let mut ab: *const _ = mask_buf;
+    let mut ab = mask_buf.as_ptr();
     for j in 0..nr {
         for i in 0..mr {
             if i < rows && j < cols {

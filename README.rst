@@ -42,6 +42,15 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.1
+
+  - Attempt to fix bug #55 were the mask buffer in TLS did not seem to
+    get its requested alignment on macos. The mask buffer pointer is now
+    aligned manually (again, like it was in 0.2.x).
+
+  - Fix a minor issue where we were passing a buffer pointer as ``&T``
+    when it should have been ``&[T]``.
+
 - 0.3.0
 
   - Implement initial support for threading using a bespoke thread pool with

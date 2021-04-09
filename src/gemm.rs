@@ -276,7 +276,7 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     let mr = K::MR;
     let nr = K::NR;
     // check for the mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
-    assert!(mr * nr * size_of::<K::Elem>() <= MASK_BUF_SIZE && K::align_to() <= KERNEL_MAX_ALIGN);
+    assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE && K::align_to() <= KERNEL_MAX_ALIGN);
 
     #[cfg(not(feature = "std"))]
     let mut mask_buf = MaskBuffer { buffer: [0; MASK_BUF_SIZE] };

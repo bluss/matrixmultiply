@@ -1,14 +1,17 @@
 //! Run this executable to benchmark sgemm and dgemm for arbitrary size matrices
 //! See --help for usage examples.  Remember to run in release mode.
+#![allow(non_camel_case_types)]
 
 extern crate itertools;
 extern crate matrixmultiply;
 
 use std::time::Instant;
-use std::fmt::{Display, Debug};
+use std::fmt::Debug;
 use itertools::zip;
 
 use matrixmultiply::{sgemm, dgemm};
+#[cfg(feature="cgemm")]
+use matrixmultiply::{cgemm, zgemm, CGemmOption};
 use itertools::Itertools;
 
 fn main() -> Result<(), String> {
@@ -31,16 +34,29 @@ fn run_main(args: impl IntoIterator<Item=String>) -> Result<(), String> {
         }
     };
 
-    if opts.use_f32 {
-        test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv)
-    } else {
-        test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv)
+    match opts.use_type {
+        UseType::F32 => test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv),
+        UseType::F64 => test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv),
+        UseType::C32 => test_matrix::<c32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv),
+        UseType::C64 => test_matrix::<c64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv),
     }
     Ok(())
 }
 
+#[derive(Debug, Copy, Clone)]
+enum UseType {
+    F32,
+    F64,
+    C32,
+    C64,
+}
 
-trait Float : Copy + Display + Debug + PartialEq {
+impl Default for UseType {
+    fn default() -> Self { Self::F64 }
+}
+
+
+trait Float : Copy + Debug + PartialEq {
     fn zero() -> Self;
     fn one() -> Self;
     fn from(x: i64) -> Self;
@@ -64,6 +80,24 @@ impl Float for f64 {
     fn is_nan(self) -> bool { self.is_nan() }
 }
 
+type c32 = [f32; 2];
+type c64 = [f64; 2];
+
+impl Float for c32 {
+    fn zero() -> Self { [0., 0.] }
+    fn one() -> Self { [1., 0.] }
+    fn from(x: i64) -> Self { [x as _, 0.] }
+    fn nan() -> Self { [f32::NAN, f32::NAN] }
+    fn is_nan(self) -> bool { self[0].is_nan() || self[1].is_nan() }
+}
+
+impl Float for c64 {
+    fn zero() -> Self { [0., 0.] }
+    fn one() -> Self { [1., 0.] }
+    fn from(x: i64) -> Self { [x as _, 0.] }
+    fn nan() -> Self { [f64::NAN, f64::NAN] }
+    fn is_nan(self) -> bool { self[0].is_nan() || self[1].is_nan() }
+}
 
 trait Gemm : Sized {
     unsafe fn gemm(
@@ -111,13 +145,69 @@ impl Gemm for f64 {
     }
 }
 
+impl Gemm for c32 {
+    #[allow(unused)]
+    unsafe fn gemm(
+        m: usize, k: usize, n: usize,
+        alpha: Self,
+        a: *const Self, rsa: isize, csa: isize,
+        b: *const Self, rsb: isize, csb: isize,
+        beta: Self,
+        c: *mut Self, rsc: isize, csc: isize) {
+        #[cfg(not(feature="cgemm"))]
+        {
+            unimplemented!()
+        }
+        #[cfg(feature="cgemm")]
+        {
+        cgemm(
+            CGemmOption::Standard,
+            CGemmOption::Standard,
+            m, k, n,
+            alpha,
+            a, rsa, csa,
+            b, rsb, csb,
+            beta,
+            c, rsc, csc)
+        }
+    }
+}
+
+impl Gemm for c64 {
+    #[allow(unused)]
+    unsafe fn gemm(
+        m: usize, k: usize, n: usize,
+        alpha: Self,
+        a: *const Self, rsa: isize, csa: isize,
+        b: *const Self, rsb: isize, csb: isize,
+        beta: Self,
+        c: *mut Self, rsc: isize, csc: isize) {
+        #[cfg(not(feature="cgemm"))]
+        {
+            unimplemented!()
+        }
+        #[cfg(feature="cgemm")]
+        {
+        zgemm(
+            CGemmOption::Standard,
+            CGemmOption::Standard,
+            m, k, n,
+            alpha,
+            a, rsa, csa,
+            b, rsb, csb,
+            beta,
+            c, rsc, csc)
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct Options {
     m: usize,
     k: usize,
     n: usize,
     layout: [Layout; 3],
-    use_f32: bool,
+    use_type: UseType,
     use_csv: bool,
 }
 
@@ -133,8 +223,13 @@ fn parse_args(args: impl IntoIterator<Item=String>) -> Result<Options, String> {
         .parse::<usize>().map_err(|e| e.to_string())?;
     if let Some(arg) = args.next() {
         if arg == "f32" {
-            opts.use_f32 = true;
+            opts.use_type = UseType::F32;
         } else if arg == "f64" {
+            opts.use_type = UseType::F64;
+        } else if arg == "c64" {
+            opts.use_type = UseType::C64;
+        } else if arg == "c32" {
+            opts.use_type = UseType::C32;
             //
         } else {
             Err(format!("Unknown argument {}", arg))?;

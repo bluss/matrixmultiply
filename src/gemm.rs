@@ -23,9 +23,15 @@ use crate::kernel::ConstNum;
 use crate::kernel::Element;
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
+#[cfg(feature = "cgemm")]
+use crate::kernel::{c32, c64};
 use crate::threading::{get_thread_pool, ThreadPoolCtx, LoopThreadConfig};
 use crate::sgemm_kernel;
 use crate::dgemm_kernel;
+#[cfg(feature = "cgemm")]
+use crate::cgemm_kernel;
+#[cfg(feature = "cgemm")]
+use crate::zgemm_kernel;
 use rawpointer::PointerExt;
 
 /// General matrix multiplication (f32)
@@ -85,6 +91,91 @@ pub unsafe fn dgemm(
     c: *mut f64, rsc: isize, csc: isize)
 {
     dgemm_kernel::detect(GemmParameters { m, k, n,
+                alpha,
+                a, rsa, csa,
+                b, rsb, csb,
+                beta,
+                c, rsc, csc})
+}
+
+/// cgemm/zgemm per-operand options
+///
+/// TBD.
+#[cfg(feature = "cgemm")]
+#[non_exhaustive]
+#[derive(Copy, Clone, Debug)]
+pub enum CGemmOption {
+    /// Standard
+    Standard,
+}
+
+#[cfg(feature = "cgemm")]
+/// General matrix multiplication (complex f32)
+///
+/// C ← α A B + β C
+///
+/// + m, k, n: dimensions
+/// + a, b, c: pointer to the first element in the matrix
+/// + A: m by k matrix
+/// + B: k by n matrix
+/// + C: m by n matrix
+/// + rs<em>x</em>: row stride of *x*
+/// + cs<em>x</em>: col stride of *x*
+///
+/// Strides for A and B may be arbitrary. Strides for C must not result in
+/// elements that alias each other, for example they can not be zero.
+///
+/// If β is zero, then C does not need to be initialized.
+///
+/// Requires crate feature `"cgemm"`
+pub unsafe fn cgemm(
+    flaga: CGemmOption, flagb: CGemmOption,
+    m: usize, k: usize, n: usize,
+    alpha: c32,
+    a: *const c32, rsa: isize, csa: isize,
+    b: *const c32, rsb: isize, csb: isize,
+    beta: c32,
+    c: *mut c32, rsc: isize, csc: isize)
+{
+    let _ = (flaga, flagb);
+    cgemm_kernel::detect(GemmParameters { m, k, n,
+                alpha,
+                a, rsa, csa,
+                b, rsb, csb,
+                beta,
+                c, rsc, csc})
+}
+
+#[cfg(feature = "cgemm")]
+/// General matrix multiplication (complex f64)
+///
+/// C ← α A B + β C
+///
+/// + m, k, n: dimensions
+/// + a, b, c: pointer to the first element in the matrix
+/// + A: m by k matrix
+/// + B: k by n matrix
+/// + C: m by n matrix
+/// + rs<em>x</em>: row stride of *x*
+/// + cs<em>x</em>: col stride of *x*
+///
+/// Strides for A and B may be arbitrary. Strides for C must not result in
+/// elements that alias each other, for example they can not be zero.
+///
+/// If β is zero, then C does not need to be initialized.
+///
+/// Requires crate feature `"cgemm"`
+pub unsafe fn zgemm(
+    flaga: CGemmOption, flagb: CGemmOption,
+    m: usize, k: usize, n: usize,
+    alpha: c64,
+    a: *const c64, rsa: isize, csa: isize,
+    b: *const c64, rsb: isize, csb: isize,
+    beta: c64,
+    c: *mut c64, rsc: isize, csc: isize)
+{
+    let _ = (flaga, flagb);
+    zgemm_kernel::detect(GemmParameters { m, k, n,
                 alpha,
                 a, rsa, csa,
                 b, rsb, csb,
@@ -481,8 +572,8 @@ unsafe fn c_to_masked_ab_beta_c<T, K>(beta: T,
                 if beta.is_zero() {
                     *cptr = *ab; // initialize
                 } else {
-                    *cptr *= beta;
-                    *cptr += *ab;
+                    (*cptr).mul_assign(beta);
+                    (*cptr).add_assign(*ab);
                 }
             }
             ab.inc();
@@ -502,7 +593,7 @@ unsafe fn c_to_beta_c<T>(m: usize, n: usize, beta: T,
             if beta.is_zero() {
                 *cptr = T::zero(); // initialize C
             } else {
-                *cptr *= beta;
+                (*cptr).mul_assign(beta);
             }
         }
     }

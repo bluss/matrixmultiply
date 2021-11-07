@@ -1,4 +1,4 @@
-// Copyright 2016 - 2018 Ulrik Sverdrup "bluss"
+// Copyright 2016 - 2021 Ulrik Sverdrup "bluss"
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -129,3 +129,15 @@ mod sgemm_kernel;
 
 pub use crate::gemm::dgemm;
 pub use crate::gemm::sgemm;
+
+#[cfg(feature = "cgemm")]
+mod cgemm_kernel;
+#[cfg(feature = "cgemm")]
+mod zgemm_kernel;
+
+#[cfg(feature = "cgemm")]
+pub use crate::gemm::cgemm;
+#[cfg(feature = "cgemm")]
+pub use crate::gemm::zgemm;
+#[cfg(feature = "cgemm")]
+pub use crate::gemm::CGemmOption;

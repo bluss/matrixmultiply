@@ -6,8 +6,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use core::ops::{AddAssign, MulAssign};
-
 use crate::archparam;
 
 /// General matrix multiply kernel
@@ -65,22 +63,28 @@ pub(crate) trait GemmKernel {
         c: *mut Self::Elem, rsc: isize, csc: isize);
 }
 
-pub(crate) trait Element : Copy + AddAssign + MulAssign + Send + Sync {
+pub(crate) trait Element : Copy + Send + Sync {
     fn zero() -> Self;
     fn one() -> Self;
     fn is_zero(&self) -> bool;
+    fn add_assign(&mut self, rhs: Self);
+    fn mul_assign(&mut self, rhs: Self);
 }
 
 impl Element for f32 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
     fn is_zero(&self) -> bool { *self == 0. }
+    fn add_assign(&mut self, rhs: Self) { *self += rhs; }
+    fn mul_assign(&mut self, rhs: Self) { *self *= rhs; }
 }
 
 impl Element for f64 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
     fn is_zero(&self) -> bool { *self == 0. }
+    fn add_assign(&mut self, rhs: Self) { *self += rhs; }
+    fn mul_assign(&mut self, rhs: Self) { *self *= rhs; }
 }
 
 /// Kernel selector
@@ -91,13 +95,77 @@ pub(crate) trait GemmSelect<T> {
               T: Element;
 }
 
+#[cfg(feature = "cgemm")]
+#[allow(non_camel_case_types)]
+pub(crate) type c32 = [f32; 2];
+
+#[cfg(feature = "cgemm")]
+#[allow(non_camel_case_types)]
+pub(crate) type c64 = [f64; 2];
+
+#[cfg(feature = "cgemm")]
+impl Element for c32 {
+    fn zero() -> Self { [0., 0.] }
+    fn one() -> Self { [1., 0.] }
+    fn is_zero(&self) -> bool { *self == [0., 0.] }
+
+    #[inline(always)]
+    fn add_assign(&mut self, y: Self) {
+        self[0] += y[0];
+        self[1] += y[1];
+    }
+
+    #[inline(always)]
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = c32_mul(*self, rhs);
+    }
+}
+
+#[cfg(feature = "cgemm")]
+impl Element for c64 {
+    fn zero() -> Self { [0., 0.] }
+    fn one() -> Self { [1., 0.] }
+    fn is_zero(&self) -> bool { *self == [0., 0.] }
+
+    #[inline(always)]
+    fn add_assign(&mut self, y: Self) {
+        self[0] += y[0];
+        self[1] += y[1];
+    }
+
+    #[inline(always)]
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = c64_mul(*self, rhs);
+    }
+}
+
+#[cfg(feature = "cgemm")]
+#[inline(always)]
+pub(crate) fn c32_mul(x: c32, y: c32) -> c32 {
+    let [a, b] = x;
+    let [c, d] = y;
+    [a * c - b * d, b * c + a * d]
+}
+
+#[cfg(feature = "cgemm")]
+#[inline(always)]
+pub(crate) fn c64_mul(x: c64, y: c64) -> c64 {
+    let [a, b] = x;
+    let [c, d] = y;
+    [a * c - b * d, b * c + a * d]
+}
+
 
 pub(crate) trait ConstNum {
     const VALUE: usize;
 }
 
+#[cfg(feature = "cgemm")]
+pub(crate) struct U2;
 pub(crate) struct U4;
 pub(crate) struct U8;
 
+#[cfg(feature = "cgemm")]
+impl ConstNum for U2 { const VALUE: usize = 2; }
 impl ConstNum for U4 { const VALUE: usize = 4; }
 impl ConstNum for U8 { const VALUE: usize = 8; }

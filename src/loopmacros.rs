@@ -27,6 +27,14 @@ macro_rules! loop4 {
     }
 }
 
+#[cfg(feature = "cgemm")]
+macro_rules! loop2 {
+    ($i:ident, $e:expr) => {{
+        let $i = 0; $e;
+        let $i = 1; $e;
+    }}
+}
+
 #[cfg(not(debug_assertions))]
 macro_rules! loop4 {
     ($i:ident, $e:expr) => {{

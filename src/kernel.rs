@@ -9,7 +9,7 @@
 use core::ops::{AddAssign, MulAssign};
 
 /// General matrix multiply kernel
-pub trait GemmKernel {
+pub(crate) trait GemmKernel {
     type Elem: Element;
 
     /// Kernel rows
@@ -59,7 +59,7 @@ pub trait GemmKernel {
         c: *mut Self::Elem, rsc: isize, csc: isize);
 }
 
-pub trait Element : Copy + AddAssign + MulAssign + Send + Sync {
+pub(crate) trait Element : Copy + AddAssign + MulAssign + Send + Sync {
     fn zero() -> Self;
     fn one() -> Self;
     fn is_zero(&self) -> bool;
@@ -86,12 +86,12 @@ pub(crate) trait GemmSelect<T> {
 }
 
 
-pub trait ConstNum {
+pub(crate) trait ConstNum {
     const VALUE: usize;
 }
 
-pub struct U4;
-pub struct U8;
+pub(crate) struct U4;
+pub(crate) struct U8;
 
 impl ConstNum for U4 { const VALUE: usize = 4; }
 impl ConstNum for U8 { const VALUE: usize = 8; }

@@ -21,10 +21,11 @@ jobs:
           - rust: 1.41.1  # MSRV
             experimental: false
             target: x86_64-unknown-linux-gnu
+            features: cgemm
           - rust: stable
             experimental: false
             target: x86_64-unknown-linux-gnu
-            features: threading
+            features: threading cgemm
             test_examples: yes
           - rust: nightly
             experimental: false
@@ -32,11 +33,12 @@ jobs:
             mmtest_feature: avx
           - rust: nightly
             target: x86_64-unknown-linux-gnu
-            features: threading
+            features: threading cgemm
             mmtest_feature: fma
             experimental: false
           - rust: nightly
             target: i686-unknown-linux-gnu
+            features: cgemm
             install_deps: |
               sudo apt-get update
               sudo apt-get install -y gcc-multilib

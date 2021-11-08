@@ -868,7 +868,7 @@ mod tests {
     mod test_arch_kernels {
         use super::test_a_kernel;
         use super::super::*;
-        #[cfg(features = "std")]
+        #[cfg(feature = "std")]
         use std::println;
         macro_rules! test_arch_kernels_x86 {
             ($($feature_name:tt, $name:ident, $kernel_ty:ty),*) => {
@@ -878,7 +878,7 @@ mod tests {
                     if is_x86_feature_detected_!($feature_name) {
                         test_a_kernel::<$kernel_ty>(stringify!($name));
                     } else {
-                        #[cfg(features = "std")]
+                        #[cfg(feature = "std")]
                         println!("Skipping, host does not have feature: {:?}", $feature_name);
                     }
                 }

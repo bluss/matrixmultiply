@@ -89,6 +89,15 @@
 //! `MATMUL_NUM_THREADS` decides how many threads are used at maximum. At the moment 1-4 are
 //! supported and the default is the number of physical cpus (as detected by `num_cpus`).
 //!
+//! ### `cgemm`
+//!
+//! `cgemm` is an optional crate feature.
+//!
+//! It enables the `cgemm` and `zgemm` methods for complex matrix multiplication.
+//! This is an **experimental feature** and not yet as performant as the float kernels on x86.
+//!
+//! The complex representation we use is `[f64; 2]`.
+//!
 //! ## Other Notes
 //!
 //! The functions in this crate are thread safe, as long as the destination

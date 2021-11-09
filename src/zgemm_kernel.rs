@@ -16,6 +16,7 @@ struct KernelSse2;
 struct KernelFallback;
 
 type T = c64;
+type TReal = f64;
 
 /// Detect which implementation to use and select it using the selector's
 /// .select(Kernel) method.
@@ -34,9 +35,7 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     return selector.select(KernelFallback);
 }
 
-#[cfg(all(test, any(target_arch="x86", target_arch="x86_64")))]
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
-#[cfg(test)]
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop2!($j, $e) }; }
 
 
@@ -98,32 +97,7 @@ unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
     kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc)
 }
 
-#[inline]
-unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
-                               beta: T, c: *mut T, rsc: isize, csc: isize)
-{
-    const MR: usize = KernelFallback::MR;
-    const NR: usize = KernelFallback::NR;
-    let mut ab: [[T; NR]; MR] = [[T::zero(); NR]; MR];
-    let mut a = a;
-    let mut b = b;
-    debug_assert_eq!(beta, T::zero(), "Beta must be 0 or is not masked");
-
-    // Compute A B into ab[i][j]
-    unroll_by!(4 => k, {
-        loop4!(i, loop2!(j, ab[i][j].add_assign(mul(at(a, i), at(b, j)))));
-
-        a = a.offset(MR as isize);
-        b = b.offset(NR as isize);
-    });
-
-    macro_rules! c {
-        ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
-    }
-
-    // set C = α A B
-    loop2!(j, loop4!(i, *c![i, j] = mul(alpha, ab[i][j])));
-}
+kernel_fallback_impl_complex! { [inline] kernel_fallback_impl, T, TReal, KernelFallback::MR, KernelFallback::NR, 2 }
 
 #[inline(always)]
 unsafe fn at(ptr: *const T, i: usize) -> T {

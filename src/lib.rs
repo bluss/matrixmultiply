@@ -131,6 +131,9 @@ pub use crate::gemm::dgemm;
 pub use crate::gemm::sgemm;
 
 #[cfg(feature = "cgemm")]
+#[macro_use]
+mod cgemm_common;
+#[cfg(feature = "cgemm")]
 mod cgemm_kernel;
 #[cfg(feature = "cgemm")]
 mod zgemm_kernel;

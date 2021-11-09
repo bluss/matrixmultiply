@@ -12,6 +12,8 @@ use crate::kernel::{U2, U4, c64, Element, c64_mul as mul};
 
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+struct KernelFma;
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelSse2;
 struct KernelFallback;
 
@@ -28,7 +30,9 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     // dispatch to specific compiled versions
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
-        if is_x86_feature_detected_!("sse2") {
+        if is_x86_feature_detected_!("fma") {
+            return selector.select(KernelFma);
+        } else if is_x86_feature_detected_!("sse2") {
             return selector.select(KernelSse2);
         }
     }
@@ -38,6 +42,30 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop2!($j, $e) }; }
 
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+impl GemmKernel for KernelFma {
+    type Elem = T;
+
+    type MRTy = <KernelFallback as GemmKernel>::MRTy;
+    type NRTy = <KernelFallback as GemmKernel>::NRTy;
+
+    #[inline(always)]
+    fn align_to() -> usize { 16 }
+
+    #[inline(always)]
+    fn always_masked() -> bool { KernelFallback::always_masked() }
+
+    #[inline(always)]
+    unsafe fn kernel(
+        k: usize,
+        alpha: T,
+        a: *const T,
+        b: *const T,
+        beta: T,
+        c: *mut T, rsc: isize, csc: isize) {
+        kernel_target_fma(k, alpha, a, b, beta, c, rsc, csc)
+    }
+}
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 impl GemmKernel for KernelSse2 {
@@ -87,6 +115,13 @@ impl GemmKernel for KernelFallback {
         kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc)
     }
 }
+
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+kernel_fallback_impl_complex! {
+    // instantiate fma separately so that it's inlined here
+    [inline target_feature(enable="fma")] kernel_target_fma, T, TReal, KernelFallback::MR, KernelFallback::NR, 2
+}
+
 
 #[inline]
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
@@ -184,6 +219,7 @@ mod tests {
         }
 
         test_arch_kernels_x86! {
+            "fma", fma, KernelFma,
             "sse2", sse2, KernelSse2
         }
 

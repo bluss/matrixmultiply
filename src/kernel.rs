@@ -1,4 +1,4 @@
-// Copyright 2016 - 2018 Ulrik Sverdrup "bluss"
+// Copyright 2016 - 2021 Ulrik Sverdrup "bluss"
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -7,6 +7,8 @@
 // except according to those terms.
 
 use core::ops::{AddAssign, MulAssign};
+
+use crate::archparam;
 
 /// General matrix multiply kernel
 pub(crate) trait GemmKernel {
@@ -27,9 +29,13 @@ pub(crate) trait GemmKernel {
     /// Whether to always use the masked wrapper around the kernel.
     fn always_masked() -> bool;
 
-    fn nc() -> usize;
-    fn kc() -> usize;
-    fn mc() -> usize;
+    // These should ideally be tuned per kernel and per microarch
+    #[inline(always)]
+    fn nc() -> usize { archparam::S_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::S_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::S_MC }
 
     /// Matrix multiplication kernel
     ///

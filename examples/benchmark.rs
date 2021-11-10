@@ -52,6 +52,15 @@ enum UseType {
 }
 
 impl UseType {
+    fn type_name(self) -> &'static str {
+        use UseType::*;
+        match self {
+            F32 => "f32",
+            F64 => "f64",
+            C32 => "c32",
+            C64 => "c64",
+        }
+    }
     fn flop_factor(self) -> f64 {
         match self {
             // estimate one multiply and one addition
@@ -347,7 +356,7 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: b
     //println!("{:#?}", statistics);
     let gflop = use_type.flop_factor() * (m as f64 * n as f64 * k as f64) / statistics.average as f64;
     if !use_csv {
-        print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, std::any::type_name::<F>(),
+        print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, use_type.type_name(),
                fmt_thousands_sep(statistics.average, " "));
         print!(" [minimum: {} ns .. median {} ns .. sample count {}]", 
                fmt_thousands_sep(statistics.minimum, " "),
@@ -359,7 +368,7 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: b
     } else {
         print!("{},{},{},", m, k, n);
         print!("{:?},", layouts.iter().format(""));
-        print!("{},", std::any::type_name::<F>());
+        print!("{},", use_type.type_name());
         print!("{},{},{},{},", statistics.average, statistics.minimum, statistics.median,
                statistics.samples.len());
         print!("{}", gflop);

@@ -1,6 +1,5 @@
 //! Run this executable to benchmark sgemm and dgemm for arbitrary size matrices
 //! See --help for usage examples.  Remember to run in release mode.
-#![allow(non_camel_case_types)]
 
 extern crate itertools;
 extern crate matrixmultiply;
@@ -10,11 +9,9 @@ use std::fmt::Debug;
 use std::time::Instant;
 
 use itertools::zip;
-
-use matrixmultiply::{sgemm, dgemm};
-#[cfg(feature="cgemm")]
-use matrixmultiply::{cgemm, zgemm, CGemmOption};
 use itertools::Itertools;
+
+include!("../testdefs/testdefs.rs");
 
 enum Arg {
     Flag { long: &'static str },
@@ -141,8 +138,12 @@ fn run_main(args: impl IntoIterator<Item=String>) -> Result<(), String> {
     match opts.use_type {
         UseType::F32 => test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
         UseType::F64 => test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        #[cfg(feature="cgemm")]
         UseType::C32 => test_matrix::<c32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        #[cfg(feature="cgemm")]
         UseType::C64 => test_matrix::<c64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        #[cfg(not(feature="cgemm"))]
+        _otherwise => unimplemented!("cgemm feature missing"),
     }
     Ok(())
 }
@@ -178,152 +179,6 @@ impl UseType {
 
 impl Default for UseType {
     fn default() -> Self { Self::F64 }
-}
-
-
-trait Float : Copy + Debug + PartialEq {
-    fn zero() -> Self;
-    fn one() -> Self;
-    fn from(x: i64) -> Self;
-    fn nan() -> Self;
-    fn is_nan(self) -> bool;
-}
-
-impl Float for f32 {
-    fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
-    fn from(x: i64) -> Self { x as Self }
-    fn nan() -> Self { 0./0. }
-    fn is_nan(self) -> bool { self.is_nan() }
-}
-
-impl Float for f64 {
-    fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
-    fn from(x: i64) -> Self { x as Self }
-    fn nan() -> Self { 0./0. }
-    fn is_nan(self) -> bool { self.is_nan() }
-}
-
-type c32 = [f32; 2];
-type c64 = [f64; 2];
-
-impl Float for c32 {
-    fn zero() -> Self { [0., 0.] }
-    fn one() -> Self { [1., 0.] }
-    fn from(x: i64) -> Self { [x as _, 0.] }
-    fn nan() -> Self { [f32::NAN, f32::NAN] }
-    fn is_nan(self) -> bool { self[0].is_nan() || self[1].is_nan() }
-}
-
-impl Float for c64 {
-    fn zero() -> Self { [0., 0.] }
-    fn one() -> Self { [1., 0.] }
-    fn from(x: i64) -> Self { [x as _, 0.] }
-    fn nan() -> Self { [f64::NAN, f64::NAN] }
-    fn is_nan(self) -> bool { self[0].is_nan() || self[1].is_nan() }
-}
-
-trait Gemm : Sized {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize);
-}
-
-impl Gemm for f32 {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        sgemm(
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
-    }
-}
-
-impl Gemm for f64 {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        dgemm(
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
-    }
-}
-
-impl Gemm for c32 {
-    #[allow(unused)]
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        #[cfg(not(feature="cgemm"))]
-        {
-            unimplemented!()
-        }
-        #[cfg(feature="cgemm")]
-        {
-        cgemm(
-            CGemmOption::Standard,
-            CGemmOption::Standard,
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
-        }
-    }
-}
-
-impl Gemm for c64 {
-    #[allow(unused)]
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        #[cfg(not(feature="cgemm"))]
-        {
-            unimplemented!()
-        }
-        #[cfg(feature="cgemm")]
-        {
-        zgemm(
-            CGemmOption::Standard,
-            CGemmOption::Standard,
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default)]

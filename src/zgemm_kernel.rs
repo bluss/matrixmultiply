@@ -11,7 +11,6 @@ use crate::kernel::GemmSelect;
 use crate::kernel::{U2, U4, c64, Element, c64_mul as mul};
 use crate::archparam;
 
-
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFma;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]

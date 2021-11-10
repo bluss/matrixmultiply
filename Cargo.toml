@@ -49,6 +49,10 @@ cgemm = []
 threading = ["thread-tree", "std", "once_cell", "num_cpus"]
 std = []
 
+# support for compile-time configuration
+constconf = []
+
+
 [profile.release]
 debug = true
 [profile.bench]

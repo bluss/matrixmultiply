@@ -139,10 +139,10 @@ fn run_main(args: impl IntoIterator<Item=String>) -> Result<(), String> {
     };
 
     match opts.use_type {
-        UseType::F32 => test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type),
-        UseType::F64 => test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type),
-        UseType::C32 => test_matrix::<c32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type),
-        UseType::C64 => test_matrix::<c64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type),
+        UseType::F32 => test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        UseType::F64 => test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        UseType::C32 => test_matrix::<c32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        UseType::C64 => test_matrix::<c64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
     }
     Ok(())
 }
@@ -334,6 +334,7 @@ struct Options {
     layout: [Layout; 3],
     use_type: UseType,
     use_csv: bool,
+    extra_column: Option<String>,
 }
 
 fn parse_args(args: impl IntoIterator<Item=String>) -> Result<Options, String> {
@@ -343,6 +344,7 @@ fn parse_args(args: impl IntoIterator<Item=String>) -> Result<Options, String> {
         &Arg::Flag { long: "csv" },
         &Arg::Value { long: "layout" },
         &Arg::Value { long: "type" },
+        &Arg::Value { long: "extra-column" },
     ], args);
 
     opts.use_type = match parse.get_string("type") {
@@ -363,6 +365,8 @@ fn parse_args(args: impl IntoIterator<Item=String>) -> Result<Options, String> {
         }
     }
     opts.use_csv = parse.get_flag("csv").is_some();
+    opts.extra_column = parse.get_string("extra-column").map(|s| s.to_string());
+
     parse.check_usage()?;
 
     opts.m = parse.next_positional_int().ok_or("Expected argument".to_string())? as usize;
@@ -394,7 +398,8 @@ impl Default for Layout {
 }
 
 
-fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: bool, use_type: UseType)
+fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3],
+                  use_csv: bool, use_type: UseType, extra: &Option<String>)
     where F: Gemm + Float
 {
     let (m, k, n) = (m, k, n);
@@ -467,6 +472,9 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: b
         print!("{},{},{},{},", statistics.average, statistics.minimum, statistics.median,
                statistics.samples.len());
         print!("{}", gflop);
+        if let Some(extra) = extra {
+            print!(",{}", extra);
+        }
         println!();
     }
 

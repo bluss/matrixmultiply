@@ -35,10 +35,10 @@ fn run_main(args: impl IntoIterator<Item=String>) -> Result<(), String> {
     };
 
     match opts.use_type {
-        UseType::F32 => test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv),
-        UseType::F64 => test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv),
-        UseType::C32 => test_matrix::<c32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv),
-        UseType::C64 => test_matrix::<c64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv),
+        UseType::F32 => test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type),
+        UseType::F64 => test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type),
+        UseType::C32 => test_matrix::<c32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type),
+        UseType::C64 => test_matrix::<c64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type),
     }
     Ok(())
 }
@@ -49,6 +49,18 @@ enum UseType {
     F64,
     C32,
     C64,
+}
+
+impl UseType {
+    fn flop_factor(self) -> f64 {
+        match self {
+            // estimate one multiply and one addition
+            UseType::F32 | UseType::F64 => 2.,
+            // (P + Qi)(R + Si) = ..
+            // estimate 8 flop (4 float multiplies and 4 additions).
+            UseType::C32 | UseType::C64 => 8.,
+        }
+    }
 }
 
 impl Default for UseType {
@@ -278,7 +290,7 @@ impl Default for Layout {
 }
 
 
-fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: bool)
+fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: bool, use_type: UseType)
     where F: Gemm + Float
 {
     let (m, k, n) = (m, k, n);
@@ -333,7 +345,7 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: b
     });
              //std::any::type_name::<F>(), fmt_thousands_sep(elapsed_ns, ' '));
     //println!("{:#?}", statistics);
-    let gflop = (2. * m as f64 * n as f64 * k as f64 ) / statistics.average as f64;
+    let gflop = use_type.flop_factor() * (m as f64 * n as f64 * k as f64) / statistics.average as f64;
     if !use_csv {
         print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, std::any::type_name::<F>(),
                fmt_thousands_sep(statistics.average, " "));

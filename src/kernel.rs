@@ -66,6 +66,7 @@ pub(crate) trait GemmKernel {
 pub(crate) trait Element : Copy + Send + Sync {
     fn zero() -> Self;
     fn one() -> Self;
+    fn test_value() -> Self;
     fn is_zero(&self) -> bool;
     fn add_assign(&mut self, rhs: Self);
     fn mul_assign(&mut self, rhs: Self);
@@ -74,6 +75,7 @@ pub(crate) trait Element : Copy + Send + Sync {
 impl Element for f32 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
+    fn test_value() -> Self { 1. }
     fn is_zero(&self) -> bool { *self == 0. }
     fn add_assign(&mut self, rhs: Self) { *self += rhs; }
     fn mul_assign(&mut self, rhs: Self) { *self *= rhs; }
@@ -82,6 +84,7 @@ impl Element for f32 {
 impl Element for f64 {
     fn zero() -> Self { 0. }
     fn one() -> Self { 1. }
+    fn test_value() -> Self { 1. }
     fn is_zero(&self) -> bool { *self == 0. }
     fn add_assign(&mut self, rhs: Self) { *self += rhs; }
     fn mul_assign(&mut self, rhs: Self) { *self *= rhs; }
@@ -107,6 +110,7 @@ pub(crate) type c64 = [f64; 2];
 impl Element for c32 {
     fn zero() -> Self { [0., 0.] }
     fn one() -> Self { [1., 0.] }
+    fn test_value() -> Self { [1., 0.5] }
     fn is_zero(&self) -> bool { *self == [0., 0.] }
 
     #[inline(always)]
@@ -125,6 +129,7 @@ impl Element for c32 {
 impl Element for c64 {
     fn zero() -> Self { [0., 0.] }
     fn one() -> Self { [1., 0.] }
+    fn test_value() -> Self { [1., 0.5] }
     fn is_zero(&self) -> bool { *self == [0., 0.] }
 
     #[inline(always)]
@@ -169,3 +174,56 @@ pub(crate) struct U8;
 impl ConstNum for U2 { const VALUE: usize = 2; }
 impl ConstNum for U4 { const VALUE: usize = 4; }
 impl ConstNum for U8 { const VALUE: usize = 8; }
+
+
+#[cfg(test)]
+pub(crate) mod test {
+    use std::fmt;
+
+    use super::GemmKernel;
+    use super::Element;
+    use crate::aligned_alloc::Alloc;
+
+    pub(crate) fn aligned_alloc<K>(elt: K::Elem, n: usize) -> Alloc<K::Elem>
+        where K: GemmKernel,
+              K::Elem: Copy,
+    {
+        unsafe {
+            Alloc::new(n, K::align_to()).init_with(elt)
+        }
+    }
+
+    pub(crate) fn test_a_kernel<K, T>(_name: &str)
+    where
+        K: GemmKernel<Elem = T>,
+        T: Element + fmt::Debug + PartialEq,
+    {
+        const K: usize = 4;
+
+        // To test, compute A B -> C
+        // where B looks like an identity matrix (truncated, depending on MR/NR)
+
+        let mr = K::MR;
+        let nr = K::NR;
+        let mut a = aligned_alloc::<K>(T::zero(), mr * K);
+        let mut b = aligned_alloc::<K>(T::zero(), nr * K);
+        for (i, x) in a.iter_mut().enumerate() {
+            for _ in 0..i {
+                x.add_assign(T::test_value());
+            }
+        }
+
+        for i in 0..Ord::min(K, nr) {
+            b[i + i * nr] = T::one();
+        }
+
+        let mut c = vec![T::zero(); mr * nr];
+        unsafe {
+            K::kernel(K, T::one(), &a[0], &b[0], T::zero(), &mut c[0], 1, mr as isize);
+            // col major C
+        }
+        let common_len = Ord::min(a.len(), c.len());
+        assert_eq!(&a[..common_len], &c[..common_len]);
+    }
+
+}

@@ -163,46 +163,11 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::vec;
-    use crate::aligned_alloc::Alloc;
-
-    fn aligned_alloc<K>(elt: K::Elem, n: usize) -> Alloc<K::Elem>
-        where K: GemmKernel,
-              K::Elem: Copy,
-    {
-        unsafe {
-            Alloc::new(n, K::align_to()).init_with(elt)
-        }
-    }
-
-    use super::T;
-
-    fn test_a_kernel<K: GemmKernel<Elem=T>>(_name: &str) {
-        const K: usize = 4;
-        let mr = K::MR;
-        let nr = K::NR;
-        let mut a = aligned_alloc::<K>(T::one(), mr * K);
-        let mut b = aligned_alloc::<K>(T::zero(), nr * K);
-        for (i, x) in a.iter_mut().enumerate() {
-            *x = [i as _, 1.];
-        }
-
-        for i in 0..Ord::min(K, nr) {
-            b[i + i * nr] = T::one(); 
-        }
-
-        let mut c = vec![T::zero(); mr * nr];
-        unsafe {
-            K::kernel(K, T::one(), &a[0], &b[0], T::zero(), &mut c[0], 1, mr as isize);
-            // col major C
-        }
-        let common_len = Ord::min(a.len(), c.len());
-        assert_eq!(&a[..common_len], &c[..common_len]);
-    }
+    use crate::kernel::test::test_a_kernel;
 
     #[test]
     fn test_kernel_fallback_impl() {
-        test_a_kernel::<KernelFallback>("kernel");
+        test_a_kernel::<KernelFallback, _>("kernel");
     }
 
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
@@ -229,7 +194,7 @@ mod tests {
                 #[test]
                 fn $name() {
                     if is_x86_feature_detected_!($feature_name) {
-                        test_a_kernel::<$kernel_ty>(stringify!($name));
+                        test_a_kernel::<$kernel_ty, _>(stringify!($name));
                     } else {
                         #[cfg(feature = "std")]
                         println!("Skipping, host does not have feature: {:?}", $feature_name);
@@ -242,26 +207,6 @@ mod tests {
         test_arch_kernels_x86! {
             "fma", fma, KernelFma,
             "sse2", sse2, KernelSse2
-        }
-
-        #[test]
-        fn ensure_target_features_tested() {
-            // If enabled, this test ensures that the requested feature actually
-            // was enabled on this configuration, so that it was tested.
-            let should_ensure_feature = !option_env!("MMTEST_ENSUREFEATURE")
-                                                    .unwrap_or("").is_empty();
-            if !should_ensure_feature {
-                // skip
-                return;
-            }
-            let feature_name = option_env!("MMTEST_FEATURE")
-                                          .expect("No MMTEST_FEATURE configured!");
-            let detected = match feature_name {
-                "sse2" => is_x86_feature_detected_!("sse2"),
-                _ => false,
-            };
-            assert!(detected, "Feature {:?} was not detected, so it could not be tested",
-                    feature_name);
         }
     }
 }

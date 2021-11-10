@@ -5,14 +5,114 @@
 extern crate itertools;
 extern crate matrixmultiply;
 
-use std::time::Instant;
+use std::cell::Cell;
 use std::fmt::Debug;
+use std::time::Instant;
+
 use itertools::zip;
 
 use matrixmultiply::{sgemm, dgemm};
 #[cfg(feature="cgemm")]
 use matrixmultiply::{cgemm, zgemm, CGemmOption};
 use itertools::Itertools;
+
+enum Arg {
+    Flag { long: &'static str },
+    Value { long: &'static str },
+}
+
+impl Arg {
+    fn is_flag(&self) -> bool {
+        match *self {
+            Arg::Flag { .. } => true,
+            Arg::Value { .. } => false,
+        }
+    }
+
+    fn long(&self) -> &str {
+        use Arg::*;
+        match *self {
+            Flag { long, .. } | Value { long, .. } => long,
+        }
+    }
+}
+
+struct Argparse<'a> {
+    spec: &'a [&'a Arg],
+    // true: this arg has already been parsed, false: unused
+    used: Vec<Cell<bool>>,
+    args: Vec<String>,
+}
+
+// Simple argument parser
+impl<'a> Argparse<'a> {
+    pub fn new(spec: &'a [&'a Arg], args: impl IntoIterator<Item=String>) -> Self {
+        let strings: Vec<_> = args.into_iter().collect();
+        Argparse {
+            spec,
+            used: vec![Cell::new(false); strings.len()],
+            args: strings,
+        }
+    }
+    
+    fn get_arg(&self, long: &str) -> Option<(bool, &str)> {
+        self.used[0].set(true);
+        let arg_spec = self.spec.iter().find(|arg| arg.long() == long).expect("No such argument");
+        for (i, arg) in self.args.iter().enumerate() {
+            if self.used[i].get() {
+                continue;
+            }
+
+            let arg_long = arg_spec.long();
+            if arg.starts_with("--") {
+                if arg[2..].starts_with(arg_long) {
+                    /* has arg */
+                    self.used[i].set(true);
+                    if arg_spec.is_flag() {
+                        return Some((false, ""));
+                    }
+
+                    if arg[2 + arg_long.len()..].is_empty() && self.args.len() > i + 1 {
+                        self.used[i + 1].set(true);
+                        return Some((true, &self.args[i + 1]));
+                    } else {
+                        return Some((true, &arg[3 + arg_long.len()..]))
+                    }
+                }
+            }
+        }
+        None
+    }
+
+
+    pub fn get_flag(&self, long: &str) -> Option<bool> {
+        self.get_arg(long).map(|_| true)
+    }
+
+    pub fn get_string(&self, long: &str) -> Option<&str> {
+        self.get_arg(long).map(|(_, arg)| arg)
+    }
+
+    pub fn check_usage(&self) -> Result<(), String> {
+        for (i, arg) in self.args.iter().enumerate() {
+            if !self.used[i].get() && arg.starts_with("-") {
+                return Err(format!("Unknown argument {:?}", arg));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn next_positional_int(&self) -> Option<u64> {
+        for (i, arg) in self.args.iter().enumerate() {
+            if !self.used[i].get() {
+                self.used[i].set(true);
+                return Some(arg.parse::<u64>().unwrap())
+            }
+        }
+        None
+    }
+}
+
 
 fn main() -> Result<(), String> {
     run_main(std::env::args())
@@ -25,8 +125,12 @@ fn run_main(args: impl IntoIterator<Item=String>) -> Result<(), String> {
     let opts = match parse_args(args) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("Usage: <command> m-size k-size n-size [float-type layout-types csv-format]");
-            eprintln!("Example: <command> 1000 1000 1000 f64 fcf");
+            eprintln!("Usage: <command> [--type <type>] [--layout <layout>] [--csv]  m-size k-size n-size");
+            eprintln!();
+            eprintln!("Where <type> is one of: f32, f64, c32, c64");
+            eprintln!("Where <layout> is 3 letters from c, f like: ccc fcc fff");
+            eprintln!();
+            eprintln!("Example: <command> --type f64 --layout fcf 1000 1000 1000");
             eprintln!();
             eprintln!("csv headers: m,k,n,layout,type,average_ns,minimum_ns,median_ns,samples,gflops");
             eprintln!();
@@ -234,46 +338,37 @@ struct Options {
 
 fn parse_args(args: impl IntoIterator<Item=String>) -> Result<Options, String> {
     let mut opts = Options::default();
-    let mut args = args.into_iter();
-    let _ = args.next();
-    opts.m = args.next().ok_or("Expected argument".to_string())?
-        .parse::<usize>().map_err(|e| e.to_string())?;
-    opts.k = args.next().ok_or("Expected argument".to_string())?
-        .parse::<usize>().map_err(|e| e.to_string())?;
-    opts.n = args.next().ok_or("Expected argument".to_string())?
-        .parse::<usize>().map_err(|e| e.to_string())?;
-    if let Some(arg) = args.next() {
-        if arg == "f32" {
-            opts.use_type = UseType::F32;
-        } else if arg == "f64" {
-            opts.use_type = UseType::F64;
-        } else if arg == "c64" {
-            opts.use_type = UseType::C64;
-        } else if arg == "c32" {
-            opts.use_type = UseType::C32;
-            //
-        } else {
-            Err(format!("Unknown argument {}", arg))?;
+    //./target/release/examples/benchmark 1280 1280 1280 c64 fcf
+    let parse = Argparse::new(&[
+        &Arg::Flag { long: "csv" },
+        &Arg::Value { long: "layout" },
+        &Arg::Value { long: "type" },
+    ], args);
+
+    opts.use_type = match parse.get_string("type") {
+        Some("f32") => UseType::F32,
+        Some("f64") => UseType::F64,
+        Some("c32") => UseType::C32,
+        Some("c64") => UseType::C64,
+        Some(_otherwise) => return Err("Unknown type".to_string()),
+        None => UseType::F64,
+    };
+    if let Some(layout) = parse.get_string("layout") {
+        if layout.len() != 3 || !layout.chars().all(|c| c == 'c' || c == 'f') {
+            Err(format!("Unknown argument {}", layout))?;
         }
-        // layout
-        if let Some(arg) = args.next() {
-            if arg.len() != 3 || !arg.chars().all(|c| c == 'c' || c == 'f') {
-                Err(format!("Unknown argument {}", arg))?;
-            }
-            for (elt, layout_arg) in zip(&mut opts.layout[..], arg.chars())
-            {
-                *elt = if layout_arg == 'c' { Layout::C } else { Layout::F };
-            }
-            // csv
-            if let Some(arg) = args.next() {
-                if arg == "csv" {
-                    opts.use_csv = true;
-                } else {
-                    Err(format!("Unknown argument {}", arg))?;
-                }
-            }
+        for (elt, layout_arg) in zip(&mut opts.layout[..], layout.chars())
+        {
+            *elt = if layout_arg == 'c' { Layout::C } else { Layout::F };
         }
     }
+    opts.use_csv = parse.get_flag("csv").is_some();
+    parse.check_usage()?;
+
+    opts.m = parse.next_positional_int().ok_or("Expected argument".to_string())? as usize;
+    opts.k = parse.next_positional_int().ok_or("Expected argument".to_string())? as usize;
+    opts.n = parse.next_positional_int().ok_or("Expected argument".to_string())? as usize;
+
     Ok(opts)
 }
 

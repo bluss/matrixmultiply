@@ -9,6 +9,7 @@
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
 use crate::kernel::{U2, U4, c32, Element, c32_mul as mul};
+use crate::archparam;
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFma;
@@ -56,6 +57,13 @@ impl GemmKernel for KernelFma {
     fn always_masked() -> bool { KernelFallback::always_masked() }
 
     #[inline(always)]
+    fn nc() -> usize { archparam::C_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::C_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::C_MC }
+
+    #[inline(always)]
     unsafe fn kernel(
         k: usize,
         alpha: T,
@@ -81,6 +89,13 @@ impl GemmKernel for KernelSse2 {
     fn always_masked() -> bool { KernelFallback::always_masked() }
 
     #[inline(always)]
+    fn nc() -> usize { archparam::C_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::C_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::C_MC }
+
+    #[inline(always)]
     unsafe fn kernel(
         k: usize,
         alpha: T,
@@ -103,6 +118,13 @@ impl GemmKernel for KernelFallback {
 
     #[inline(always)]
     fn always_masked() -> bool { true }
+
+    #[inline(always)]
+    fn nc() -> usize { archparam::C_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::C_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::C_MC }
 
     #[inline(always)]
     unsafe fn kernel(

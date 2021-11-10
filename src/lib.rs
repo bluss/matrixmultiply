@@ -98,6 +98,14 @@
 //!
 //! The complex representation we use is `[f64; 2]`.
 //!
+//! ### `constconf`
+//!
+//! `constconf` is an optional feature. When enabled, cache-sensitive parameters of
+//! the gemm implementations can be tweaked *at compile time* by defining the following variables:
+//!
+//! - `MATMUL_SGEMM_MC`
+//!   (And so on, for S, D, C, ZGEMM and with NC, KC or MC).
+//!
 //! ## Other Notes
 //!
 //! The functions in this crate are thread safe, as long as the destination
@@ -121,7 +129,17 @@ extern crate core;
 mod debugmacros;
 #[macro_use]
 mod loopmacros;
+
+mod archparam_defaults;
+
+#[cfg(feature = "constconf")]
 mod archparam;
+#[cfg(feature = "constconf")]
+mod constparse;
+
+#[cfg(not(feature = "constconf"))]
+pub(crate) use archparam_defaults as archparam;
+
 mod gemm;
 mod kernel;
 mod ptr;

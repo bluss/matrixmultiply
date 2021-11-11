@@ -8,9 +8,15 @@ use matrixmultiply::{cgemm, zgemm, CGemmOption};
 pub trait Float : Copy + std::fmt::Debug + PartialEq {
     fn zero() -> Self;
     fn one() -> Self;
+    // construct as number x
     fn from(x: i64) -> Self;
+    // construct as number x + yi, but ignore y if not complex
+    fn from2(x: i64, _y: i64) -> Self { Self::from(x) }
     fn nan() -> Self;
+    fn real(self) -> Self { self }
+    fn imag(self) -> Self { self }
     fn is_nan(self) -> bool;
+    fn is_complex() -> bool { false }
 }
 
 impl Float for f32 {
@@ -41,8 +47,12 @@ impl Float for c32 {
     fn zero() -> Self { [0., 0.] }
     fn one() -> Self { [1., 0.] }
     fn from(x: i64) -> Self { [x as _, 0.] }
+    fn from2(x: i64, y: i64) -> Self { [x as _, y as _] }
     fn nan() -> Self { [0./0., 0./0.] }
+    fn real(self) -> Self { [self[0], 0.] }
+    fn imag(self) -> Self { [self[1], 0.] }
     fn is_nan(self) -> bool { self[0].is_nan() || self[1].is_nan() }
+    fn is_complex() -> bool { true }
 }
 
 #[cfg(feature="cgemm")]
@@ -50,8 +60,12 @@ impl Float for c64 {
     fn zero() -> Self { [0., 0.] }
     fn one() -> Self { [1., 0.] }
     fn from(x: i64) -> Self { [x as _, 0.] }
+    fn from2(x: i64, y: i64) -> Self { [x as _, y as _] }
     fn nan() -> Self { [0./0., 0./0.] }
+    fn real(self) -> Self { [self[0], 0.] }
+    fn imag(self) -> Self { [self[1], 0.] }
     fn is_nan(self) -> bool { self[0].is_nan() || self[1].is_nan() }
+    fn is_complex() -> bool { true }
 }
 
 

@@ -32,6 +32,13 @@ Development Goals
 - Small code footprint and fast compilation
 - We are not reimplementing BLAS.
 
+Benchmarks
+----------
+
+- ``cargo bench`` is useful for special cases and small matrices
+- The best gemm and threading benchmark is is ``examples/benchmarks.rs`` which supports custom sizes,
+  some configuration, and csv output.
+
 Blog Posts About This Crate
 ---------------------------
 

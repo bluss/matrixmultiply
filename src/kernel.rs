@@ -198,18 +198,23 @@ pub(crate) mod test {
         K: GemmKernel<Elem = T>,
         T: Element + fmt::Debug + PartialEq,
     {
-        const K: usize = 4;
-
-        // To test, compute A B -> C
-        // where B looks like an identity matrix (truncated, depending on MR/NR)
-
+        const K: usize = 16;
         let mr = K::MR;
         let nr = K::NR;
+
+        // 1. Test A I == A (variables a, b, c)
+        // b looks like an identity matrix (truncated, depending on MR/NR)
+
         let mut a = aligned_alloc::<K>(T::zero(), mr * K);
         let mut b = aligned_alloc::<K>(T::zero(), nr * K);
-        for (i, x) in a.iter_mut().enumerate() {
-            for _ in 0..i {
-                x.add_assign(T::test_value());
+
+        let mut count = 1;
+        for i in 0..mr {
+            for j in 0..K {
+                for _ in 0..count {
+                    a[i * K + j].add_assign(T::test_value());
+                }
+                count += 1;
             }
         }
 
@@ -219,11 +224,39 @@ pub(crate) mod test {
 
         let mut c = vec![T::zero(); mr * nr];
         unsafe {
-            K::kernel(K, T::one(), &a[0], &b[0], T::zero(), &mut c[0], 1, mr as isize);
             // col major C
+            K::kernel(K, T::one(), a.as_ptr(), b.as_ptr(), T::zero(), c.as_mut_ptr(), 1, mr as isize);
         }
         let common_len = Ord::min(a.len(), c.len());
         assert_eq!(&a[..common_len], &c[..common_len]);
+
+        // 2. Test I B == B (variables a, b, c)
+        // a looks like an identity matrix (truncated, depending on MR/NR)
+
+        let mut a = aligned_alloc::<K>(T::zero(), mr * K);
+        let mut b = aligned_alloc::<K>(T::zero(), nr * K);
+
+        for i in 0..Ord::min(K, mr) {
+            a[i + i * mr] = T::one();
+        }
+
+        let mut count = 1;
+        for i in 0..K {
+            for j in 0..nr {
+                for _ in 0..count {
+                    b[i * nr + j].add_assign(T::test_value());
+                }
+                count += 1;
+            }
+        }
+
+        let mut c = vec![T::zero(); mr * nr];
+        unsafe {
+            // row major C
+            K::kernel(K, T::one(), a.as_ptr(), b.as_ptr(), T::zero(), c.as_mut_ptr(), nr as isize, 1);
+        }
+        let common_len = Ord::min(b.len(), c.len());
+        assert_eq!(&b[..common_len], &c[..common_len]);
     }
 
 }

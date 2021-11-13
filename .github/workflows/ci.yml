@@ -12,6 +12,42 @@ env:
   MATMUL_NUM_THREADS: 4
 
 jobs:
+  mac:
+    runs-on: macos-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      matrix:
+        include:
+          - rust: stable
+            experimental: true
+            target: x86_64-apple-darwin
+            features: threading
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+          override: true
+      - name: Tests
+        run: |
+          rustc -C target-cpu=native --print cfg
+          cargo build -v --features "${{ matrix.features }}" --target "${{ matrix.target }}"
+          cargo test -v --tests --lib --no-fail-fast --features "${{ matrix.features }}" --target "${{ matrix.target }}"
+          cargo test -v  --tests --lib --release --no-fail-fast --features "${{ matrix.features }}" --target "${{ matrix.target }}"
+      - name: Test examples
+        if: matrix.test_examples
+        run: |
+          cargo test -v --examples --features "${{ matrix.features }}" --target "${{ matrix.target }}"
+      - name: Test specific feature
+        if: matrix.mmtest_feature
+        env:
+          MMTEST_FEATURE: ${{ matrix.mmtest_feature }}
+          MMTEST_ENSUREFEATURE: 1
+        run: |
+          cargo test -v --no-fail-fast
+
   tests:
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental }}

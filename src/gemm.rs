@@ -373,16 +373,20 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
         .parallel(thread_config.loop2, tp)
         .thread_local(|_i, _nt| {
             let ptr;
+            let ptr_outer;
             #[cfg(not(feature = "std"))]
             {
                 debug_assert_eq!(_nt, 1);
                 ptr = mask_buf.buffer.as_mut_ptr();
+                ptr_outer = ptr;
             }
             #[cfg(feature = "std")]
             {
+                ptr_outer = MASK_BUF.with(|buf| buf as *const _);
                 ptr = MASK_BUF.with(|buf| (*buf.get()).buffer.as_mut_ptr());
             }
-            debug_assert_eq!(ptr as usize % KERNEL_MAX_ALIGN, 0);
+            debug_assert_eq!(ptr_outer as usize % KERNEL_MAX_ALIGN, 0, "thread local's alignment failed");
+            debug_assert_eq!(ptr as usize % KERNEL_MAX_ALIGN, 0, "thread local->buffer align");
             slice::from_raw_parts_mut(ptr as *mut K::Elem, KERNEL_MAX_SIZE / size_of::<K::Elem>())
         })
         .for_each(move |_tp, mask_buf, l2, nr_| {

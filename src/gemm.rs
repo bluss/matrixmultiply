@@ -331,14 +331,10 @@ unsafe fn gemm_loop<K>(
 // set up buffer for masked (redirected output of) kernel
 const KERNEL_MAX_SIZE: usize = 8 * 8 * 4;
 const KERNEL_MAX_ALIGN: usize = 32;
-const MASK_BUF_SIZE: usize = KERNEL_MAX_SIZE + KERNEL_MAX_ALIGN - 1;
 
-// Pointers into buffer will be manually aligned anyway, due to
-// bugs we have seen on certain platforms (macos) that look like
-// we don't get aligned allocations out of TLS (?).
 #[repr(align(32))]
 struct MaskBuffer {
-    buffer: [u8; MASK_BUF_SIZE],
+    buffer: [u8; KERNEL_MAX_SIZE],
 }
 
 // Use thread local if we can; this is faster even in the single threaded case because
@@ -346,7 +342,7 @@ struct MaskBuffer {
 #[cfg(feature = "std")]
 thread_local! {
     static MASK_BUF: UnsafeCell<MaskBuffer> =
-        UnsafeCell::new(MaskBuffer { buffer: [0; MASK_BUF_SIZE] });
+        UnsafeCell::new(MaskBuffer { buffer: [0; KERNEL_MAX_SIZE] });
 }
 
 /// Loops 1 and 2 around the µ-kernel
@@ -370,13 +366,13 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE && K::align_to() <= KERNEL_MAX_ALIGN);
 
     #[cfg(not(feature = "std"))]
-    let mut mask_buf = MaskBuffer { buffer: [0; MASK_BUF_SIZE] };
+    let mut mask_buf = MaskBuffer { buffer: [0; KERNEL_MAX_SIZE] };
 
     // LOOP 2: through micropanels in packed `b` (B~, C)
     range_chunk(nc, nr)
         .parallel(thread_config.loop2, tp)
         .thread_local(|_i, _nt| {
-            let mut ptr;
+            let ptr;
             #[cfg(not(feature = "std"))]
             {
                 debug_assert_eq!(_nt, 1);
@@ -386,7 +382,7 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
             {
                 ptr = MASK_BUF.with(|buf| (*buf.get()).buffer.as_mut_ptr());
             }
-            ptr = align_ptr(K::align_to(), ptr);
+            debug_assert_eq!(ptr as usize % KERNEL_MAX_ALIGN, 0);
             slice::from_raw_parts_mut(ptr as *mut K::Elem, KERNEL_MAX_SIZE / size_of::<K::Elem>())
         })
         .for_each(move |_tp, mask_buf, l2, nr_| {
@@ -445,19 +441,6 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize, na: usize) -> (Al
              m,k,n, na);
 
     (Alloc::new(nelem, K::align_to()), apack_size)
-}
-
-/// offset the ptr forwards to align to a specific byte count
-/// Safety: align_to must be a power of two and ptr valid for the pointer arithmetic
-#[inline]
-unsafe fn align_ptr<T>(align_to: usize, mut ptr: *mut T) -> *mut T {
-    if align_to != 0 {
-        let cur_align = ptr as usize % align_to;
-        if cur_align != 0 {
-            ptr = ptr.offset(((align_to - cur_align) / size_of::<T>()) as isize);
-        }
-    }
-    ptr
 }
 
 /// Pack matrix into `pack`

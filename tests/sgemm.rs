@@ -59,14 +59,14 @@ fn test_zgemm_strides() {
 }
 
 fn test_gemm_strides<F>() where F: Gemm + Float {
+    if FAST_TEST.is_some() { return; }
+
     for n in 0..20 {
         test_strides::<F>(n, n, n);
     }
 
-    if FAST_TEST.is_none() {
-        for n in (3..12).map(|x| x * 7) {
-            test_strides::<F>(n, n, n);
-        }
+    for n in (3..12).map(|x| x * 7) {
+        test_strides::<F>(n, n, n);
     }
 
     test_strides::<F>(8, 12, 16);
@@ -76,7 +76,10 @@ fn test_gemm_strides<F>() where F: Gemm + Float {
 fn test_gemm<F>() where F: Gemm + Float {
     test_mul_with_id::<F>(4, 4, true);
     test_mul_with_id::<F>(8, 8, true);
-    test_mul_with_id::<F>(32, 32, false);
+    test_mul_with_id::<F>(32, 32, true);
+
+    if FAST_TEST.is_some() { return; }
+
     test_mul_with_id::<F>(128, 128, false);
     test_mul_with_id::<F>(17, 128, false);
     for i in 0..12 {

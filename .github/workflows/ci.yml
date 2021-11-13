@@ -129,3 +129,10 @@ jobs:
           MMTEST_FAST_TEST: 1
           RUSTFLAGS: -Copt-level=2
 
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Miri
+        run: ci/miri.sh --features cgemm
+

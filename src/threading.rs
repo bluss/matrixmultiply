@@ -124,7 +124,7 @@ impl LoopThreadConfig {
     fn new_impl(m: usize, k: usize, n: usize, max_threads: usize, kmc: usize) -> Self {
         // use a heuristic to try not to use too many threads for smaller matrices
         let size_factor = m * k + k * n;
-        let thread_factor = 1 << 16;
+        let thread_factor = 1 << 14;
         // pure guesswork in terms of what the default should be
         let arch_factor = if cfg!(any(target_arch="arm", target_arch="aarch64")) {
             20

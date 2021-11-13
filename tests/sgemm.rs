@@ -2,7 +2,7 @@ extern crate core;
 extern crate itertools;
 extern crate matrixmultiply;
 
-use matrixmultiply::{sgemm, dgemm};
+include!("../testdefs/testdefs.rs");
 
 use itertools::Itertools;
 use itertools::{
@@ -10,96 +10,52 @@ use itertools::{
     enumerate,
     repeat_n,
 };
-use core::fmt::{Display, Debug};
+use core::fmt::Debug;
 
 const FAST_TEST: Option<&'static str> = option_env!("MMTEST_FAST_TEST");
-
-trait Float : Copy + Display + Debug + PartialEq {
-    fn zero() -> Self;
-    fn one() -> Self;
-    fn from(x: i64) -> Self;
-    fn nan() -> Self;
-    fn is_nan(self) -> bool;
-}
-
-impl Float for f32 {
-    fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
-    fn from(x: i64) -> Self { x as Self }
-    fn nan() -> Self { 0./0. }
-    fn is_nan(self) -> bool { self.is_nan() }
-}
-
-impl Float for f64 {
-    fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
-    fn from(x: i64) -> Self { x as Self }
-    fn nan() -> Self { 0./0. }
-    fn is_nan(self) -> bool { self.is_nan() }
-}
-
-
-trait Gemm : Sized {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize);
-}
-
-impl Gemm for f32 {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        sgemm(
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
-    }
-}
-
-impl Gemm for f64 {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        dgemm(
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
-    }
-}
 
 #[test]
 fn test_sgemm() {
     test_gemm::<f32>();
 }
+
 #[test]
 fn test_dgemm() {
     test_gemm::<f64>();
 }
+
+#[cfg(feature="cgemm")]
+#[test]
+fn test_cgemm() {
+    test_gemm::<c32>();
+}
+
+#[cfg(feature="cgemm")]
+#[test]
+fn test_zgemm() {
+    test_gemm::<c64>();
+}
+
 #[test]
 fn test_sgemm_strides() {
     test_gemm_strides::<f32>();
 }
+
 #[test]
 fn test_dgemm_strides() {
     test_gemm_strides::<f64>();
+}
+
+#[cfg(feature="cgemm")]
+#[test]
+fn test_cgemm_strides() {
+    test_gemm_strides::<c32>();
+}
+
+#[cfg(feature="cgemm")]
+#[test]
+fn test_zgemm_strides() {
+    test_gemm_strides::<c64>();
 }
 
 fn test_gemm_strides<F>() where F: Gemm + Float {
@@ -201,7 +157,7 @@ fn test_mul_with_id<F>(m: usize, n: usize, small: bool)
                     println!("{:?}", row);
                 }
             }
-            panic!("mismatch at index={}, x: {}, y: {} (matrix input M={}, N={})",
+            panic!("mismatch at index={}, x: {:?}, y: {:?} (matrix input M={}, N={})",
                    i, x, y, m, n);
         }
     }
@@ -252,7 +208,7 @@ fn test_mul_id_with<F>(k: usize, n: usize, small: bool)
                     println!("{:?}", row);
                 }
             }
-            panic!("mismatch at index={}, x: {}, y: {} (matrix input M={}, N={})",
+            panic!("mismatch at index={}, x: {:?}, y: {:?} (matrix input M={}, N={})",
                    i, x, y, m, n);
         }
     }
@@ -275,39 +231,72 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
     // init c2 with NaN to test the overwriting behavior when beta = 0.
 
     for (i, elt) in a.iter_mut().enumerate() {
-        *elt = F::from(i as i64);
+        *elt = F::from2(i as i64, i as i64);
     }
     for (i, elt) in b.iter_mut().enumerate() {
-        *elt = F::from(i as i64);
+        *elt = F::from2(i as i64, i as i64);
+    }
+
+    let alpha1;
+    let beta1 = F::zero();
+    let alpha21;
+    let beta21;
+    let alpha22;
+    let beta22;
+
+    if !F::is_complex() {
+        // 3 A B == C in this way:
+        // C <- A B
+        // C <- A B + 2 C
+        alpha1 = F::from(3);
+
+        alpha21 = F::one();
+        beta21 = F::zero();
+        alpha22 = F::one();
+        beta22 = F::from(2);
+    } else {
+        // Select constants in a way that makes the complex values
+        // significant for the complex case. Using i² = -1 to make sure.
+        //
+        // (2 + 3i) A B == C in this way:
+        // C <- (1 + i) A B
+        // C <- A B + (2 + i) C  == (3 + 3i - 1) A B
+        alpha1 = F::from2(2, 3);
+
+        alpha21 = F::from2(1, 1);
+        beta21 = F::zero();
+        alpha22 = F::one();
+        beta22 = F::from2(2, 1);
     }
 
     unsafe {
-        // C1 = 3 A B
+        // C1 = alpha1 A B
         F::gemm(
             m, k, n,
-            F::from(3),
+            alpha1,
             a.as_ptr(), k as isize, 1,
             b.as_ptr(), n as isize, 1,
-            F::zero(),
+            beta1,
             c1.as_mut_ptr(), n as isize, 1,
         );
 
-        // C2 = A B 
+        // C2 = alpha21 A B
         F::gemm(
             m, k, n,
-            F::one(),
+            alpha21,
             a.as_ptr(), k as isize, 1,
             b.as_ptr(), n as isize, 1,
-            F::zero(),
+            beta21,
             c2.as_mut_ptr(), n as isize, 1,
         );
-        // C2 = A B + 2 C2
+
+        // C2 = A B + beta22 C2
         F::gemm(
             m, k, n,
-            F::one(),
+            alpha22,
             a.as_ptr(), k as isize, 1,
             b.as_ptr(), n as isize, 1,
-            F::from(2),
+            beta22,
             c2.as_mut_ptr(), n as isize, 1,
         );
     }
@@ -327,7 +316,7 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
                     println!("{:?}", row);
                 }
             }
-            panic!("mismatch at index={}, x: {}, y: {} (matrix input M={}, N={})",
+            panic!("mismatch at index={}, x: {:?}, y: {:?} (matrix input M={}, N={})",
                    i, x, y, m, n);
         }
     }
@@ -483,7 +472,7 @@ fn test_strides_inner<F>(m: usize, k: usize, n: usize,
         let jrem = index % cs_c1 as usize;
         if irem != 0 && jrem != 0 {
             assert!(elt.is_nan(),
-                "Element at index={} ({}, {}) should be NaN, but was {}\n\
+                "Element at index={} ({}, {}) should be NaN, but was {:?}\n\
                 c1: {:?}\n",
             index, i, j, elt,
             c1);

@@ -43,6 +43,9 @@ itertools = "0.8"
 [features]
 default = ["std"]
 
+# support for complex f32, complex f64
+cgemm = []
+
 threading = ["thread-tree", "std", "once_cell", "num_cpus"]
 std = []
 
@@ -55,3 +58,7 @@ debug = true
 no-dev-version = true
 tag-name = "{{version}}"
 
+[package.metadata.docs.rs]
+features = ["cgemm"]
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]

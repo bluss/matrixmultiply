@@ -4,12 +4,112 @@
 extern crate itertools;
 extern crate matrixmultiply;
 
+use std::cell::Cell;
+use std::fmt::Debug;
 use std::time::Instant;
-use std::fmt::{Display, Debug};
-use itertools::zip;
 
-use matrixmultiply::{sgemm, dgemm};
+use itertools::zip;
 use itertools::Itertools;
+
+include!("../testdefs/testdefs.rs");
+
+enum Arg {
+    Flag { long: &'static str },
+    Value { long: &'static str },
+}
+
+impl Arg {
+    fn is_flag(&self) -> bool {
+        match *self {
+            Arg::Flag { .. } => true,
+            Arg::Value { .. } => false,
+        }
+    }
+
+    fn long(&self) -> &str {
+        use Arg::*;
+        match *self {
+            Flag { long, .. } | Value { long, .. } => long,
+        }
+    }
+}
+
+struct Argparse<'a> {
+    spec: &'a [&'a Arg],
+    // true: this arg has already been parsed, false: unused
+    used: Vec<Cell<bool>>,
+    args: Vec<String>,
+}
+
+// Simple argument parser
+impl<'a> Argparse<'a> {
+    pub fn new(spec: &'a [&'a Arg], args: impl IntoIterator<Item=String>) -> Self {
+        let strings: Vec<_> = args.into_iter().collect();
+        Argparse {
+            spec,
+            used: vec![Cell::new(false); strings.len()],
+            args: strings,
+        }
+    }
+    
+    fn get_arg(&self, long: &str) -> Option<(bool, &str)> {
+        self.used[0].set(true);
+        let arg_spec = self.spec.iter().find(|arg| arg.long() == long).expect("No such argument");
+        for (i, arg) in self.args.iter().enumerate() {
+            if self.used[i].get() {
+                continue;
+            }
+
+            let arg_long = arg_spec.long();
+            if arg.starts_with("--") {
+                if arg[2..].starts_with(arg_long) {
+                    /* has arg */
+                    self.used[i].set(true);
+                    if arg_spec.is_flag() {
+                        return Some((false, ""));
+                    }
+
+                    if arg[2 + arg_long.len()..].is_empty() && self.args.len() > i + 1 {
+                        self.used[i + 1].set(true);
+                        return Some((true, &self.args[i + 1]));
+                    } else {
+                        return Some((true, &arg[3 + arg_long.len()..]))
+                    }
+                }
+            }
+        }
+        None
+    }
+
+
+    pub fn get_flag(&self, long: &str) -> Option<bool> {
+        self.get_arg(long).map(|_| true)
+    }
+
+    pub fn get_string(&self, long: &str) -> Option<&str> {
+        self.get_arg(long).map(|(_, arg)| arg)
+    }
+
+    pub fn check_usage(&self) -> Result<(), String> {
+        for (i, arg) in self.args.iter().enumerate() {
+            if !self.used[i].get() && arg.starts_with("-") {
+                return Err(format!("Unknown argument {:?}", arg));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn next_positional_int(&self) -> Option<u64> {
+        for (i, arg) in self.args.iter().enumerate() {
+            if !self.used[i].get() {
+                self.used[i].set(true);
+                return Some(arg.parse::<u64>().unwrap())
+            }
+        }
+        None
+    }
+}
+
 
 fn main() -> Result<(), String> {
     run_main(std::env::args())
@@ -22,8 +122,12 @@ fn run_main(args: impl IntoIterator<Item=String>) -> Result<(), String> {
     let opts = match parse_args(args) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("Usage: <command> m-size k-size n-size [float-type layout-types csv-format]");
-            eprintln!("Example: <command> 1000 1000 1000 f64 fcf");
+            eprintln!("Usage: <command> [--type <type>] [--layout <layout>] [--csv]  m-size k-size n-size");
+            eprintln!();
+            eprintln!("Where <type> is one of: f32, f64, c32, c64");
+            eprintln!("Where <layout> is 3 letters from c, f like: ccc fcc fff");
+            eprintln!();
+            eprintln!("Example: <command> --type f64 --layout fcf 1000 1000 1000");
             eprintln!();
             eprintln!("csv headers: m,k,n,layout,type,average_ns,minimum_ns,median_ns,samples,gflops");
             eprintln!();
@@ -31,84 +135,50 @@ fn run_main(args: impl IntoIterator<Item=String>) -> Result<(), String> {
         }
     };
 
-    if opts.use_f32 {
-        test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv)
-    } else {
-        test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv)
+    match opts.use_type {
+        UseType::F32 => test_matrix::<f32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        UseType::F64 => test_matrix::<f64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        #[cfg(feature="cgemm")]
+        UseType::C32 => test_matrix::<c32>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        #[cfg(feature="cgemm")]
+        UseType::C64 => test_matrix::<c64>(opts.m, opts.k, opts.n, opts.layout, opts.use_csv, opts.use_type, &opts.extra_column),
+        #[cfg(not(feature="cgemm"))]
+        _otherwise => unimplemented!("cgemm feature missing"),
     }
     Ok(())
 }
 
-
-trait Float : Copy + Display + Debug + PartialEq {
-    fn zero() -> Self;
-    fn one() -> Self;
-    fn from(x: i64) -> Self;
-    fn nan() -> Self;
-    fn is_nan(self) -> bool;
+#[derive(Debug, Copy, Clone)]
+enum UseType {
+    F32,
+    F64,
+    C32,
+    C64,
 }
 
-impl Float for f32 {
-    fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
-    fn from(x: i64) -> Self { x as Self }
-    fn nan() -> Self { 0./0. }
-    fn is_nan(self) -> bool { self.is_nan() }
-}
-
-impl Float for f64 {
-    fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
-    fn from(x: i64) -> Self { x as Self }
-    fn nan() -> Self { 0./0. }
-    fn is_nan(self) -> bool { self.is_nan() }
-}
-
-
-trait Gemm : Sized {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize);
-}
-
-impl Gemm for f32 {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        sgemm(
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
+impl UseType {
+    fn type_name(self) -> &'static str {
+        use UseType::*;
+        match self {
+            F32 => "f32",
+            F64 => "f64",
+            C32 => "c32",
+            C64 => "c64",
+        }
+    }
+    fn flop_factor(self) -> f64 {
+        match self {
+            // estimate one multiply and one addition
+            UseType::F32 | UseType::F64 => 2.,
+            // (P + Qi)(R + Si) = ..
+            // estimate 8 flop (4 float multiplies and 4 additions).
+            UseType::C32 | UseType::C64 => 8.,
+        }
     }
 }
 
-impl Gemm for f64 {
-    unsafe fn gemm(
-        m: usize, k: usize, n: usize,
-        alpha: Self,
-        a: *const Self, rsa: isize, csa: isize,
-        b: *const Self, rsb: isize, csb: isize,
-        beta: Self,
-        c: *mut Self, rsc: isize, csc: isize) {
-        dgemm(
-            m, k, n,
-            alpha,
-            a, rsa, csa,
-            b, rsb, csb,
-            beta,
-            c, rsc, csc)
-    }
+impl Default for UseType {
+    fn default() -> Self { Self::F64 }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -117,47 +187,47 @@ struct Options {
     k: usize,
     n: usize,
     layout: [Layout; 3],
-    use_f32: bool,
+    use_type: UseType,
     use_csv: bool,
+    extra_column: Option<String>,
 }
 
 fn parse_args(args: impl IntoIterator<Item=String>) -> Result<Options, String> {
     let mut opts = Options::default();
-    let mut args = args.into_iter();
-    let _ = args.next();
-    opts.m = args.next().ok_or("Expected argument".to_string())?
-        .parse::<usize>().map_err(|e| e.to_string())?;
-    opts.k = args.next().ok_or("Expected argument".to_string())?
-        .parse::<usize>().map_err(|e| e.to_string())?;
-    opts.n = args.next().ok_or("Expected argument".to_string())?
-        .parse::<usize>().map_err(|e| e.to_string())?;
-    if let Some(arg) = args.next() {
-        if arg == "f32" {
-            opts.use_f32 = true;
-        } else if arg == "f64" {
-            //
-        } else {
-            Err(format!("Unknown argument {}", arg))?;
+    //./target/release/examples/benchmark 1280 1280 1280 c64 fcf
+    let parse = Argparse::new(&[
+        &Arg::Flag { long: "csv" },
+        &Arg::Value { long: "layout" },
+        &Arg::Value { long: "type" },
+        &Arg::Value { long: "extra-column" },
+    ], args);
+
+    opts.use_type = match parse.get_string("type") {
+        Some("f32") => UseType::F32,
+        Some("f64") => UseType::F64,
+        Some("c32") => UseType::C32,
+        Some("c64") => UseType::C64,
+        Some(_otherwise) => return Err("Unknown type".to_string()),
+        None => UseType::F64,
+    };
+    if let Some(layout) = parse.get_string("layout") {
+        if layout.len() != 3 || !layout.chars().all(|c| c == 'c' || c == 'f') {
+            Err(format!("Unknown argument {}", layout))?;
         }
-        // layout
-        if let Some(arg) = args.next() {
-            if arg.len() != 3 || !arg.chars().all(|c| c == 'c' || c == 'f') {
-                Err(format!("Unknown argument {}", arg))?;
-            }
-            for (elt, layout_arg) in zip(&mut opts.layout[..], arg.chars())
-            {
-                *elt = if layout_arg == 'c' { Layout::C } else { Layout::F };
-            }
-            // csv
-            if let Some(arg) = args.next() {
-                if arg == "csv" {
-                    opts.use_csv = true;
-                } else {
-                    Err(format!("Unknown argument {}", arg))?;
-                }
-            }
+        for (elt, layout_arg) in zip(&mut opts.layout[..], layout.chars())
+        {
+            *elt = if layout_arg == 'c' { Layout::C } else { Layout::F };
         }
     }
+    opts.use_csv = parse.get_flag("csv").is_some();
+    opts.extra_column = parse.get_string("extra-column").map(|s| s.to_string());
+
+    parse.check_usage()?;
+
+    opts.m = parse.next_positional_int().ok_or("Expected argument".to_string())? as usize;
+    opts.k = parse.next_positional_int().ok_or("Expected argument".to_string())? as usize;
+    opts.n = parse.next_positional_int().ok_or("Expected argument".to_string())? as usize;
+
     Ok(opts)
 }
 
@@ -183,7 +253,8 @@ impl Default for Layout {
 }
 
 
-fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: bool)
+fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3],
+                  use_csv: bool, use_type: UseType, extra: &Option<String>)
     where F: Gemm + Float
 {
     let (m, k, n) = (m, k, n);
@@ -238,9 +309,9 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: b
     });
              //std::any::type_name::<F>(), fmt_thousands_sep(elapsed_ns, ' '));
     //println!("{:#?}", statistics);
-    let gflop = (2. * m as f64 * n as f64 * k as f64 ) / statistics.average as f64;
+    let gflop = use_type.flop_factor() * (m as f64 * n as f64 * k as f64) / statistics.average as f64;
     if !use_csv {
-        print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, std::any::type_name::<F>(),
+        print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, use_type.type_name(),
                fmt_thousands_sep(statistics.average, " "));
         print!(" [minimum: {} ns .. median {} ns .. sample count {}]", 
                fmt_thousands_sep(statistics.minimum, " "),
@@ -252,10 +323,13 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3], use_csv: b
     } else {
         print!("{},{},{},", m, k, n);
         print!("{:?},", layouts.iter().format(""));
-        print!("{},", std::any::type_name::<F>());
+        print!("{},", use_type.type_name());
         print!("{},{},{},{},", statistics.average, statistics.minimum, statistics.median,
                statistics.samples.len());
         print!("{}", gflop);
+        if let Some(extra) = extra {
+            print!(",{}", extra);
+        }
         println!();
     }
 

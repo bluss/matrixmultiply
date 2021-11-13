@@ -1,4 +1,4 @@
-// Copyright 2016 - 2018 Ulrik Sverdrup "bluss"
+// Copyright 2016 - 2021 Ulrik Sverdrup "bluss"
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -89,6 +89,15 @@
 //! `MATMUL_NUM_THREADS` decides how many threads are used at maximum. At the moment 1-4 are
 //! supported and the default is the number of physical cpus (as detected by `num_cpus`).
 //!
+//! ### `cgemm`
+//!
+//! `cgemm` is an optional crate feature.
+//!
+//! It enables the `cgemm` and `zgemm` methods for complex matrix multiplication.
+//! This is an **experimental feature** and not yet as performant as the float kernels on x86.
+//!
+//! The complex representation we use is `[f64; 2]`.
+//!
 //! ## Other Notes
 //!
 //! The functions in this crate are thread safe, as long as the destination
@@ -129,3 +138,18 @@ mod sgemm_kernel;
 
 pub use crate::gemm::dgemm;
 pub use crate::gemm::sgemm;
+
+#[cfg(feature = "cgemm")]
+#[macro_use]
+mod cgemm_common;
+#[cfg(feature = "cgemm")]
+mod cgemm_kernel;
+#[cfg(feature = "cgemm")]
+mod zgemm_kernel;
+
+#[cfg(feature = "cgemm")]
+pub use crate::gemm::cgemm;
+#[cfg(feature = "cgemm")]
+pub use crate::gemm::zgemm;
+#[cfg(feature = "cgemm")]
+pub use crate::gemm::CGemmOption;

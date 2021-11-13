@@ -499,44 +499,11 @@ unsafe fn at(ptr: *const T, i: usize) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::vec;
-    use crate::aligned_alloc::Alloc;
-
-    fn aligned_alloc<K>(elt: K::Elem, n: usize) -> Alloc<K::Elem>
-        where K: GemmKernel,
-              K::Elem: Copy,
-    {
-        unsafe {
-            Alloc::new(n, K::align_to()).init_with(elt)
-        }
-    }
-
-    use super::T;
-
-    fn test_a_kernel<K: GemmKernel<Elem=T>>(_name: &str) {
-        const K: usize = 4;
-        let mr = K::MR;
-        let nr = K::NR;
-        let mut a = aligned_alloc::<K>(1., mr * K);
-        let mut b = aligned_alloc::<K>(0., nr * K);
-        for (i, x) in a.iter_mut().enumerate() {
-            *x = i as _;
-        }
-
-        for i in 0..K {
-            b[i + i * nr] = 1.;
-        }
-        let mut c = vec![0.; mr * nr];
-        unsafe {
-            K::kernel(K, 1., &a[0], &b[0], 0., &mut c[0], 1, mr as isize);
-            // col major C
-        }
-        assert_eq!(&a[..], &c[..a.len()]);
-    }
+    use crate::kernel::test::test_a_kernel;
 
     #[test]
     fn test_kernel_fallback_impl() {
-        test_a_kernel::<KernelFallback>("kernel");
+        test_a_kernel::<KernelFallback, _>("kernel");
     }
 
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
@@ -555,7 +522,7 @@ mod tests {
     mod test_arch_kernels {
         use super::test_a_kernel;
         use super::super::*;
-        #[cfg(features = "std")]
+        #[cfg(feature = "std")]
         use std::println;
         macro_rules! test_arch_kernels_x86 {
             ($($feature_name:tt, $name:ident, $kernel_ty:ty),*) => {
@@ -563,9 +530,9 @@ mod tests {
                 #[test]
                 fn $name() {
                     if is_x86_feature_detected_!($feature_name) {
-                        test_a_kernel::<$kernel_ty>(stringify!($name));
+                        test_a_kernel::<$kernel_ty, _>(stringify!($name));
                     } else {
-                        #[cfg(features = "std")]
+                        #[cfg(feature = "std")]
                         println!("Skipping, host does not have feature: {:?}", $feature_name);
                     }
                 }

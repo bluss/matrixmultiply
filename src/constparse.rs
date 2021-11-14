@@ -26,18 +26,19 @@ const fn parse_byte(b: u8, pow10: usize) -> Result<usize, ParseIntError> {
 
 pub(crate) const POW10: [usize; 20] = {
     let mut array = [0; 20];
-    let mut current = 1;
+    let mut pow10 = 1usize;
 
     let mut index = 20;
 
     loop {
         index -= 1;
-        array[index] = current;
+        array[index] = pow10;
 
         if index == 0 { break }
 
-        current *= 10;
-
+        let (new_power, overflow) = pow10.overflowing_mul(10);
+        pow10 = new_power;
+        if overflow { break; }
     }
 
     array
@@ -84,4 +85,16 @@ pub(crate) const fn parse(b: &str) -> Result<usize, ParseIntError> {
     }
 
     Ok(result)
+}
+
+#[test]
+fn test_parse() {
+    for i in 0..500 {
+        assert_eq!(parse_unwarp(&i.to_string()), i);
+    }
+
+    for bits in 0..std::mem::size_of::<usize>() * 8 {
+        let i = (1 << bits) - 1;
+        assert_eq!(parse_unwarp(&i.to_string()), i);
+    }
 }

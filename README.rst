@@ -19,7 +19,7 @@ multiplication that is used by the BLIS_ project.
 
 |crates|_
 
-.. |crates| image:: https://meritbadge.herokuapp.com/matrixmultiply
+.. |crates| image:: https://img.shields.io/crates/v/matrixmultiply.svg
 .. _crates: https://crates.io/crates/matrixmultiply
 
 Development Goals

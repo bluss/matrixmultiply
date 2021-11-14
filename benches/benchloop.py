@@ -70,7 +70,7 @@ def bench_iteration(sizes, ty, nc, kc, mc, *, threads, file):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--type", type=str, default="f64", choices=["f64", "f32", "c64", "c32"], nargs="+")
+    parser.add_argument("--type", "-t", type=str, default=["f64"], choices=["f64", "f32", "c64", "c32"], nargs="+")
     parser.add_argument("--size", "-s", type=str, nargs="+", required=True,
                         help="Sizes or size ranges like 16 or 16:64:8")
     parser.add_argument("--nc", type=str, nargs="+", help="Sizes or size ranges like 16 or 16:64:8")

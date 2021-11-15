@@ -14,9 +14,13 @@ pub trait Float : Copy + std::fmt::Debug + PartialEq {
     fn from2(x: i64, _y: i64) -> Self { Self::from(x) }
     fn nan() -> Self;
     fn real(self) -> Self { self }
-    fn imag(self) -> Self { self }
+    fn imag(self) -> Self;
     fn is_nan(self) -> bool;
     fn is_complex() -> bool { false }
+    fn diff(self, rhs: Self) -> Self;
+    // absolute value as f64
+    fn abs_f64(self) -> f64;
+    fn relative_error_scale() -> f64;
 }
 
 impl Float for f32 {
@@ -24,7 +28,11 @@ impl Float for f32 {
     fn one() -> Self { 1. }
     fn from(x: i64) -> Self { x as Self }
     fn nan() -> Self { 0./0. }
+    fn imag(self) -> Self { 0. }
     fn is_nan(self) -> bool { self.is_nan() }
+    fn diff(self, rhs: Self) -> Self { self - rhs }
+    fn abs_f64(self) -> f64 { self.abs() as f64 }
+    fn relative_error_scale() -> f64 { 1e-6 }
 }
 
 impl Float for f64 {
@@ -32,7 +40,11 @@ impl Float for f64 {
     fn one() -> Self { 1. }
     fn from(x: i64) -> Self { x as Self }
     fn nan() -> Self { 0./0. }
+    fn imag(self) -> Self { 0. }
     fn is_nan(self) -> bool { self.is_nan() }
+    fn diff(self, rhs: Self) -> Self { self - rhs }
+    fn abs_f64(self) -> f64 { self.abs() }
+    fn relative_error_scale() -> f64 { 1e-12 }
 }
 
 #[allow(non_camel_case_types)]
@@ -53,6 +65,13 @@ impl Float for c32 {
     fn imag(self) -> Self { [self[1], 0.] }
     fn is_nan(self) -> bool { self[0].is_nan() || self[1].is_nan() }
     fn is_complex() -> bool { true }
+    fn diff(self, rhs: Self) -> Self {
+        [self[0] - rhs[0], self[1] - rhs[1]]
+    }
+    fn abs_f64(self) -> f64 {
+        (self[0].powi(2) + self[1].powi(2)).sqrt() as f64
+    }
+    fn relative_error_scale() -> f64 { 1e-6 }
 }
 
 #[cfg(feature="cgemm")]
@@ -66,6 +85,13 @@ impl Float for c64 {
     fn imag(self) -> Self { [self[1], 0.] }
     fn is_nan(self) -> bool { self[0].is_nan() || self[1].is_nan() }
     fn is_complex() -> bool { true }
+    fn diff(self, rhs: Self) -> Self {
+        [self[0] - rhs[0], self[1] - rhs[1]]
+    }
+    fn abs_f64(self) -> f64 {
+        (self[0].powi(2) + self[1].powi(2)).sqrt()
+    }
+    fn relative_error_scale() -> f64 { 1e-12 }
 }
 
 

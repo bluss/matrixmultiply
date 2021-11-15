@@ -147,23 +147,7 @@ fn test_mul_with_id<F>(m: usize, n: usize, small: bool)
             c.as_mut_ptr(), n as isize, 1,
             )
     }
-    for (i, (x, y)) in a.iter().zip(&c).enumerate() {
-        if x != y {
-            if k != 0 && n != 0 && small {
-                for row in a.chunks(k) {
-                    println!("{:?}", row);
-                }
-                for row in b.chunks(n) {
-                    println!("{:?}", row);
-                }
-                for row in c.chunks(n) {
-                    println!("{:?}", row);
-                }
-            }
-            panic!("mismatch at index={}, x: {:?}, y: {:?} (matrix input M={}, N={})",
-                   i, x, y, m, n);
-        }
-    }
+    assert_matrix_equal(m, n, &a, k as isize, 1, &c, n as isize, 1, small);
     println!("passed matrix with id input M={}, N={}", m, n);
 }
 
@@ -198,23 +182,7 @@ fn test_mul_id_with<F>(k: usize, n: usize, small: bool)
             c.as_mut_ptr(), n as isize, 1,
             )
     }
-    for (i, (x, y)) in b.iter().zip(&c).enumerate() {
-        if x != y {
-            if k != 0 && n != 0 && small {
-                for row in a.chunks(k) {
-                    println!("{:?}", row);
-                }
-                for row in b.chunks(n) {
-                    println!("{:?}", row);
-                }
-                for row in c.chunks(n) {
-                    println!("{:?}", row);
-                }
-            }
-            panic!("mismatch at index={}, x: {:?}, y: {:?} (matrix input M={}, N={})",
-                   i, x, y, m, n);
-        }
-    }
+    assert_matrix_equal(m, n, &b, n as isize, 1, &c, n as isize, 1, small);
     println!("passed id with matrix input K={}, N={}", k, n);
 }
 
@@ -303,26 +271,8 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
             c2.as_mut_ptr(), n as isize, 1,
         );
     }
-    for (i, (x, y)) in c1.iter().zip(&c2).enumerate() {
-        if x != y || x.is_nan() || y.is_nan() {
-            if k != 0 && n != 0 && small {
-                for row in a.chunks(k) {
-                    println!("{:?}", row);
-                }
-                for row in b.chunks(n) {
-                    println!("{:?}", row);
-                }
-                for row in c1.chunks(n) {
-                    println!("{:?}", row);
-                }
-                for row in c2.chunks(n) {
-                    println!("{:?}", row);
-                }
-            }
-            panic!("mismatch at index={}, x: {:?}, y: {:?} (matrix input M={}, N={})",
-                   i, x, y, m, n);
-        }
-    }
+
+    assert_matrix_equal(m, n, &c1, n as isize, 1, &c2, n as isize, 1, small);
     println!("passed matrix with id input M={}, N={}", m, n);
 }
 
@@ -377,6 +327,8 @@ fn test_strides_inner<F>(m: usize, k: usize, n: usize,
 {
     let (m, k, n) = (m, k, n);
 
+    let small = m < 8 && k < 8 && n < 8;
+
     // stride multipliers
     let mstridea = stride_multipliers[0];
     let mstrideb = stride_multipliers[1];
@@ -408,14 +360,6 @@ fn test_strides_inner<F>(m: usize, k: usize, n: usize,
     println!("Test matrix b : {} × {} layout: {:?} strides {}, {}", k, n, lb, rs_b, cs_b);
     println!("Test matrix c1: {} × {} layout: {:?} strides {}, {}", m, n, lc1, rs_c1, cs_c1);
     println!("Test matrix c2: {} × {} layout: {:?} strides {}, {}", m, n, lc2, rs_c2, cs_c2);
-
-    macro_rules! c1 {
-        ($i:expr, $j:expr) => (c1[(rs_c1 * $i as isize + cs_c1 * $j as isize) as usize]);
-    }
-
-    macro_rules! c2 {
-        ($i:expr, $j:expr) => (c2[(rs_c2 * $i as isize + cs_c2 * $j as isize) as usize]);
-    }
 
     unsafe {
         // Compute the same result in C1 and C2 in two different ways.
@@ -452,21 +396,9 @@ fn test_strides_inner<F>(m: usize, k: usize, n: usize,
             c2.as_mut_ptr(), rs_c2, cs_c2,
         );
     }
-    for i in 0..m {
-        for j in 0..n {
-            let c1_elt = c1![i, j];
-            let c2_elt = c2![i, j];
-            assert_eq!(c1_elt, c2_elt,
-                       "assertion failed for matrices, mismatch at {},{} \n\
-                       a:: {:?}\n\
-                       b:: {:?}\n\
-                       c1: {:?}\n\
-                       c2: {:?}\n",
-                       i, j,
-                       a, b,
-                       c1, c2);
-        }
-    }
+
+    assert_matrix_equal(m, n, &c1, rs_c1, cs_c1, &c2, rs_c2, cs_c2, small);
+
     // check we haven't overwritten the NaN values outside the passed output
     for (index, elt) in enumerate(&c1) {
         let i = index / rs_c1 as usize;
@@ -482,4 +414,68 @@ fn test_strides_inner<F>(m: usize, k: usize, n: usize,
         }
     }
     println!("{}×{}×{} {:?} .. passed.", m, k, n, layouts);
+}
+
+
+/// Assert that matrix C1 == matrix C2
+///
+/// m, n: size of matrix C1 and C2
+///
+/// exact: if true, require == equality
+///        if false, use relative difference from zero
+fn assert_matrix_equal<F>(m: usize, n: usize, c1: &[F], rs_c1: isize, cs_c1: isize, c2: &[F], rs_c2: isize, cs_c2: isize, exact: bool)
+where
+    F: Gemm + Float
+{
+    macro_rules! c1 {
+        ($i:expr, $j:expr) => (c1[(rs_c1 * $i as isize + cs_c1 * $j as isize) as usize]);
+    }
+
+    macro_rules! c2 {
+        ($i:expr, $j:expr) => (c2[(rs_c2 * $i as isize + cs_c2 * $j as isize) as usize]);
+    }
+
+    let rel_tolerance = F::relative_error_scale();
+
+    let mut maximal = 0.;
+    let mut rel_diff_max = 0.;
+    let mut n_diffs = 0;
+    let mut first_diff_index = None;
+
+    for i in 0..m {
+        for j in 0..n {
+            let c1_elt = c1![i, j];
+            let c2_elt = c2![i, j];
+
+            let c1norm = c1_elt.abs_f64();
+            if c1norm > maximal { maximal = c1norm }
+            let c2norm = c2_elt.abs_f64();
+            if c2norm > maximal { maximal = c1norm }
+
+            let c_diff = c1_elt.diff(c2_elt);
+            if c_diff != F::zero() {
+                n_diffs += 1;
+                if first_diff_index.is_none() {
+                    first_diff_index = Some((i, j));
+                }
+            }
+
+            let largest_elt = f64::max(c1norm, c2norm);
+            let point_diff_rel = c_diff.abs_f64() / largest_elt;
+            rel_diff_max = f64::max(point_diff_rel, rel_diff_max);
+        }
+    }
+
+    if n_diffs > 0 {
+        println!("Matrix equality stats: maximal elt: {}, largest relative error={:.4e}, ndiffs={}",
+                 maximal, rel_diff_max, n_diffs);
+    }
+
+    if exact {
+        assert_eq!(0, n_diffs,
+                   "C1 == C2 assertion failed for matrix of size {}x{} with first failing element at index={:?}",
+                   m, n, first_diff_index);
+    } else {
+        assert!(rel_diff_max < rel_tolerance, "Assertion failed: largest relative diff < {:.2e}, was={:e}", rel_tolerance, rel_diff_max);
+    }
 }

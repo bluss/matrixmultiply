@@ -232,6 +232,8 @@ fn ensure_kernel_params<K>()
 {
     let mr = K::MR;
     let nr = K::NR;
+    // These are current limitations,
+    // can change if corresponding code in gemm_loop is updated.
     assert!(mr > 0 && mr <= 8);
     assert!(nr > 0 && nr <= 8);
     assert!(mr * nr * size_of::<K::Elem>() <= 8 * 4 * 8);
@@ -239,6 +241,11 @@ fn ensure_kernel_params<K>()
     // one row/col of the kernel is limiting the max align we can provide
     let max_align = size_of::<K::Elem>() * min(mr, nr);
     assert!(K::align_to() <= max_align);
+
+    assert!(K::MR <= K::mc());
+    assert!(K::mc() <= K::kc());
+    assert!(K::kc() <= K::nc());
+    assert!(K::nc() <= 65536);
 }
 
 /// Implement matrix multiply using packed buffers and a microkernel

@@ -290,12 +290,8 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3],
         println!("Test matrix c : {} × {} layout: {:?} strides {}, {}", m, n, lc1, rs_c1, cs_c1);
     }
 
-    let statistics = measure(10, || {
+    let statistics = measure(10, use_csv, || {
         unsafe {
-            // EXAMPLE: Compute the same result in C1 and C2 in two different ways.
-            // We only use whole integer values in the low range of floats here,
-            // so we have no loss of precision.
-
             // C1 = A B
             F::gemm(
                 m, k, n,
@@ -307,8 +303,7 @@ fn test_matrix<F>(m: usize, k: usize, n: usize, layouts: [Layout; 3],
             );
         }
     });
-             //std::any::type_name::<F>(), fmt_thousands_sep(elapsed_ns, ' '));
-    //println!("{:#?}", statistics);
+
     let gflop = use_type.flop_factor() * (m as f64 * n as f64 * k as f64) / statistics.average as f64;
     if !use_csv {
         print!("{}×{}×{} {:?} {} .. {} ns", m, k, n, layouts, use_type.type_name(),
@@ -347,7 +342,7 @@ struct Statistics {
 const OUTLIER_HIGH_PCT: usize = 25;
 //const OUTLIER_LOW_PCT: usize = 10;
 
-fn measure(max_samples: usize, mut function: impl FnMut()) -> Statistics {
+fn measure(max_samples: usize, quiet: bool, mut function: impl FnMut()) -> Statistics {
     let mut statistics = Statistics::default();
     statistics.samples.reserve(max_samples);
     let mut goal_samples = max_samples;
@@ -361,7 +356,7 @@ fn measure(max_samples: usize, mut function: impl FnMut()) -> Statistics {
             let elapsed_ns = dur.as_secs() * 1_000_000_000 + dur.subsec_nanos() as u64;
             statistics.samples.push(elapsed_ns);
             print_each |= dur.as_secs() >= 1;
-            if print_each {
+            if !quiet && print_each {
                 println!("    {}", fmt_thousands_sep(elapsed_ns, " "));
             }
         }

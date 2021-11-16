@@ -35,10 +35,10 @@ def bench_loop(args, *, file):
             for nc in ncs:
                 for kc in kcs:
                     for mc in mcs:
-                        bench_iteration(args.size, ty, nc, kc, mc, threads=threads, file=file)
+                        bench_iteration(args.size, ty, nc, kc, mc, threads=threads, file=file, sleep=args.sleep)
 
 
-def bench_iteration(sizes, ty, nc, kc, mc, *, threads, file):
+def bench_iteration(sizes, ty, nc, kc, mc, *, threads, file, sleep):
     features = list(_DEFAULT_FEATURES)
     if threads > 0:
         features.append("threading")
@@ -66,6 +66,7 @@ def bench_iteration(sizes, ty, nc, kc, mc, *, threads, file):
 
         print("Running", " ".join(argv), file=sys.stderr)
         subprocess.run(argv, env=exec_env, stdout=file)
+        time.sleep(sleep)
 
 
 def main():
@@ -78,6 +79,7 @@ def main():
     parser.add_argument("--mc", type=str, nargs="+", help="Sizes or size ranges like 16 or 16:64:8")
     parser.add_argument("--threads", type=int, default=[0], nargs="+",
                         help="Thread use. 0: not enabled; 1: enabled but one thread; n: enabled with n threads.")
+    parser.add_argument("--sleep", type=int, default=1, help="Time to wait between every run")
     parser.add_argument("--output", type=str, default=None, help="Output file (csv format)")
     args = parser.parse_args()
 

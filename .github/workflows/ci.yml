@@ -13,37 +13,48 @@ env:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       matrix:
         include:
           - rust: 1.41.1  # MSRV
             experimental: false
+            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             features: cgemm
           - rust: stable
             experimental: false
+            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             features: threading cgemm
             test_examples: yes_examples
             test_benchmark: yes_bench
           - rust: nightly
             experimental: false
+            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             mmtest_feature: avx
           - rust: nightly
+            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             features: threading cgemm
             mmtest_feature: fma
             experimental: false
           - rust: nightly
+            os: ubuntu-latest
             target: i686-unknown-linux-gnu
             features: cgemm
             install_deps: |
               sudo apt-get update
               sudo apt-get install -y gcc-multilib
             experimental: false
+          - rust: stable
+            experimental: false
+            os: macos-latest
+            target: x86_64-apple-darwin
+            features: threading cgemm
+            test_examples: yes_examples
 
     steps:
       - uses: actions/checkout@v2

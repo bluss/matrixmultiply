@@ -50,6 +50,20 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.2
+
+  - Add optional feature ``cgemm`` for complex matmult functions ``cgemm`` and
+    ``zgemm``
+
+  - Add optional feature ``constconf`` for compile-time configuration of matrix
+    kernel parameters for chunking. Improved scripts for benchmarking over ranges
+    of different settings. With thanks to @DutchGhost for the const-time
+    parsing functions.
+
+  - Improved benchmarking and testing.
+
+  - Threading is now slightly more eager to threads (depending on matrix element count).
+
 - 0.3.1
 
   - Attempt to fix bug #55 were the mask buffer in TLS did not seem to
@@ -133,7 +147,7 @@ Recent Changes
     Benchmark improvement: execution time for 64×64 problem where inputs are either
     both row major or both column major changed by -5% sgemm and -1% for dgemm.
     (#26)
-  
+
   - In the sgemm avx kernel, handle column major output arrays just like
     it does row major arrays.
 

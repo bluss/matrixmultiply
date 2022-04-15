@@ -263,19 +263,19 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
         //
         // 0 1 2 3 (the original)
         // 1 0 3 2 (chosen because of _mm256_shuffle_pd)
-        // 2 3 0 1 (chosen because of _mm256_permute2f128_pd)
-        // 3 0 1 2 (chosen because of _mm256_shuffle_pd applied after _mm256_permute2f128_pd)
+        // 3 2 1 0 (chosen because of _mm256_permute2f128_pd)
+        // 2 3 0 1 (chosen because of _mm256_shuffle_pd)
         let b_1032 = _mm256_shuffle_pd(b_0123, b_0123, 0b0101);
 
         // Both packed 4-vectors are the same, so one could also perform
-        // the selection 0b0000_0001 or 0b0011_0010.
+        // the selection 0b0000_0001 or 0b0010_0001 or 0b0010_0011.
         // The confusing part is that of the lower 4 bits and upper 4 bits
         // only 2 bits are used in each. The same choice could have been
         // encoded in a nibble (4 bits) total, i.e. 0b1100, had the intrinsics
         // been defined differently. The highest bit in each nibble controls
         // zero-ing behaviour though.
-        // let b_2301 = _mm256_permute2f128_pd(b_0123, b_0123, 0b0011_0000);
-        // 0b0011_0000 = 0x30; makes it clearer which bits we are acting on.
+        // let b_3210 = _mm256_permute2f128_pd(b_1032, b_1032, 0b0000_0011);
+        // 0b0000_0011 = 0x03; makes it clearer which bits we are acting on.
         let b_3210 = _mm256_permute2f128_pd(b_1032, b_1032, 0x03);
         let b_2301 = _mm256_shuffle_pd(b_3210, b_3210, 0b0101);
 

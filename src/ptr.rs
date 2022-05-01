@@ -1,10 +1,11 @@
 
+use core::marker::PhantomData;
 use rawpointer::PointerExt;
 
-/// A Send + Sycn raw pointer wrapper
+/// A Send + Sync raw pointer wrapper
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-pub(crate) struct Ptr<T> { ptr: T }
+pub(crate) struct Ptr<T> { ptr: T, marker: PhantomData<*const u8> }
 unsafe impl<T> Sync for Ptr<*const T> { }
 unsafe impl<T> Sync for Ptr<*mut T> { }
 unsafe impl<T> Send for Ptr<*const T> { }
@@ -16,7 +17,7 @@ unsafe impl<T> Send for Ptr<*mut T> { }
 ///
 /// Unsafe since it is thread safety critical to use the raw pointer correctly.
 #[allow(non_snake_case)]
-pub(crate) unsafe fn Ptr<T>(ptr: T) -> Ptr<T> { Ptr { ptr } }
+pub(crate) unsafe fn Ptr<T>(ptr: T) -> Ptr<T> { Ptr { ptr, marker: PhantomData } }
 
 impl<T> Ptr<T> {
     /// Get the pointer
@@ -30,7 +31,7 @@ impl<T> Ptr<T> {
 impl<T> Ptr<*mut T> {
     /// Get as *const T
     pub(crate) fn to_const(self) -> Ptr<*const T> {
-        Ptr { ptr: self.ptr }
+        Ptr { ptr: self.ptr, marker: PhantomData }
     }
 }
 

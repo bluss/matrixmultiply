@@ -274,9 +274,7 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
         // encoded in a nibble (4 bits) total, i.e. 0b1100, had the intrinsics
         // been defined differently. The highest bit in each nibble controls
         // zero-ing behaviour though.
-        // let b_3210 = _mm256_permute2f128_pd(b_1032, b_1032, 0b0000_0011);
-        // 0b0000_0011 = 0x03; makes it clearer which bits we are acting on.
-        let b_3210 = _mm256_permute2f128_pd(b_1032, b_1032, 0x03);
+        let b_3210 = _mm256_permute2f128_pd(b_1032, b_1032, 0b0011);
         let b_2301 = _mm256_shuffle_pd(b_3210, b_3210, 0b0101);
 
         // The ideal distribution of a_i b_j pairs in the resulting panel of

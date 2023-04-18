@@ -104,11 +104,12 @@ macro_rules! gemm_layout {
             use crate::$gemm;
             $(
 
-            fn base(bench: &mut Bencher, al: Layout, bl: Layout, cl: Layout)
+            fn base(bench: &mut Bencher, al: Layout, bl: Layout, cl: Layout, use_beta: bool)
             {
                 let a = vec![0.; $m * $m];
                 let b = vec![0.; $m * $m];
                 let mut c = vec![0.; $m * $m];
+                let beta = if use_beta { 0.1 } else { 0. };
                 let (rsa, csa) = al.strides($m, 1);
                 let (rsb, csb) = bl.strides($m, 1);
                 let (rsc, csc) = cl.strides($m, 1);
@@ -119,32 +120,50 @@ macro_rules! gemm_layout {
                             1.,
                             a.as_ptr(), rsa, csa,
                             b.as_ptr(), rsb, csb,
-                            0.,
+                            beta,
                             c.as_mut_ptr(), rsc, csc,
                             )
                     }
                 });
             }
 
-            pub fn ccc(bench: &mut Bencher) { base(bench, C, C, C); }
-            pub fn ccf(bench: &mut Bencher) { base(bench, C, C, F); }
-            pub fn fcc(bench: &mut Bencher) { base(bench, F, C, C); }
-            pub fn cfc(bench: &mut Bencher) { base(bench, C, F, C); }
-            pub fn ffc(bench: &mut Bencher) { base(bench, F, F, C); }
-            pub fn cff(bench: &mut Bencher) { base(bench, C, F, F); }
-            pub fn fcf(bench: &mut Bencher) { base(bench, F, C, F); }
-            pub fn fff(bench: &mut Bencher) { base(bench, F, F, F); }
+            pub fn nobeta_ccc(bench: &mut Bencher) { base(bench, C, C, C, false); }
+            pub fn nobeta_ccf(bench: &mut Bencher) { base(bench, C, C, F, false); }
+            pub fn nobeta_fcc(bench: &mut Bencher) { base(bench, F, C, C, false); }
+            pub fn nobeta_cfc(bench: &mut Bencher) { base(bench, C, F, C, false); }
+            pub fn nobeta_ffc(bench: &mut Bencher) { base(bench, F, F, C, false); }
+            pub fn nobeta_cff(bench: &mut Bencher) { base(bench, C, F, F, false); }
+            pub fn nobeta_fcf(bench: &mut Bencher) { base(bench, F, C, F, false); }
+            pub fn nobeta_fff(bench: &mut Bencher) { base(bench, F, F, F, false); }
+
+            pub fn beta_ccc(bench: &mut Bencher) { base(bench, C, C, C, true); }
+            pub fn beta_ccf(bench: &mut Bencher) { base(bench, C, C, F, true); }
+            pub fn beta_fcc(bench: &mut Bencher) { base(bench, F, C, C, true); }
+            pub fn beta_cfc(bench: &mut Bencher) { base(bench, C, F, C, true); }
+            pub fn beta_ffc(bench: &mut Bencher) { base(bench, F, F, C, true); }
+            pub fn beta_cff(bench: &mut Bencher) { base(bench, C, F, F, true); }
+            pub fn beta_fcf(bench: &mut Bencher) { base(bench, F, C, F, true); }
+            pub fn beta_fff(bench: &mut Bencher) { base(bench, F, F, F, true); }
             )+
         }
         benchmark_group!{ $modname,
-            $modname::ccc,
-            $modname::ccf,
-            $modname::fcc,
-            $modname::cfc,
-            $modname::ffc,
-            $modname::cff,
-            $modname::fcf,
-            $modname::fff
+            $modname::nobeta_ccc,
+            $modname::nobeta_ccf,
+            $modname::nobeta_fcc,
+            $modname::nobeta_cfc,
+            $modname::nobeta_ffc,
+            $modname::nobeta_cff,
+            $modname::nobeta_fcf,
+            $modname::nobeta_fff,
+
+            $modname::beta_ccc,
+            $modname::beta_ccf,
+            $modname::beta_fcc,
+            $modname::beta_cfc,
+            $modname::beta_ffc,
+            $modname::beta_cff,
+            $modname::beta_fcf,
+            $modname::beta_fff
         }
     };
 }

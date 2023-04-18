@@ -126,7 +126,7 @@ impl LoopThreadConfig {
         let size_factor = m * k + k * n;
         let thread_factor = 1 << 14;
         // pure guesswork in terms of what the default should be
-        let arch_factor = if cfg!(any(target_arch="arm", target_arch="aarch64")) {
+        let arch_factor = if cfg!(target_arch="arm") {
             20
         } else {
             1

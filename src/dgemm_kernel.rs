@@ -25,6 +25,10 @@ struct KernelAvx;
 struct KernelFma;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelSse2;
+
+#[cfg(target_arch="aarch64")]
+struct KernelNeon;
+
 struct KernelFallback;
 
 type T = f64;
@@ -47,6 +51,14 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
             return selector.select(KernelSse2);
         }
     }
+
+    #[cfg(target_arch="aarch64")]
+    {
+        if is_aarch64_feature_detected_!("neon") {
+            return selector.select(KernelNeon);
+        }
+    }
+
     return selector.select(KernelFallback);
 }
 
@@ -158,6 +170,38 @@ impl GemmKernel for KernelSse2 {
         csc: isize)
     {
         kernel_target_sse2(k, alpha, a, b, beta, c, rsc, csc)
+    }
+}
+
+#[cfg(target_arch="aarch64")]
+impl GemmKernel for KernelNeon {
+    type Elem = T;
+
+    type MRTy = U8;
+    type NRTy = U4;
+
+    #[inline(always)]
+    fn align_to() -> usize { 32 }
+
+    #[inline(always)]
+    fn always_masked() -> bool { false }
+
+    #[inline(always)]
+    fn nc() -> usize { archparam::S_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::S_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::S_MC }
+
+    #[inline(always)]
+    unsafe fn kernel(
+        k: usize,
+        alpha: T,
+        a: *const T,
+        b: *const T,
+        beta: T,
+        c: *mut T, rsc: isize, csc: isize) {
+        kernel_target_neon(k, alpha, a, b, beta, c, rsc, csc)
     }
 }
 
@@ -776,6 +820,136 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
     }
 }
 
+#[cfg(target_arch="aarch64")]
+#[target_feature(enable="neon")]
+unsafe fn kernel_target_neon(k: usize, alpha: T, a: *const T, b: *const T,
+                             beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    use core::arch::aarch64::*;
+    const MR: usize = KernelNeon::MR;
+    const NR: usize = KernelNeon::NR;
+
+    let (mut a, mut b) = (a, b);
+
+    // Kernel 8 x 4 (a x b)
+    // Four quadrants of 4 x 2
+    let mut ab11 = [vmovq_n_f64(0.); 4];
+    let mut ab12 = [vmovq_n_f64(0.); 4];
+    let mut ab21 = [vmovq_n_f64(0.); 4];
+    let mut ab22 = [vmovq_n_f64(0.); 4];
+
+    // Compute
+    // ab_ij = a_i * b_j for all i, j
+    macro_rules! ab_ij_equals_ai_bj_12 {
+        ($dest:ident, $av:expr, $bv:expr) => {
+            $dest[0] = vfmaq_laneq_f64($dest[0], $bv, $av, 0);
+            $dest[1] = vfmaq_laneq_f64($dest[1], $bv, $av, 1);
+        }
+    }
+
+    macro_rules! ab_ij_equals_ai_bj_23 {
+        ($dest:ident, $av:expr, $bv:expr) => {
+            $dest[2] = vfmaq_laneq_f64($dest[2], $bv, $av, 0);
+            $dest[3] = vfmaq_laneq_f64($dest[3], $bv, $av, 1);
+        }
+    }
+
+    for _ in 0..k {
+        let b1 = vld1q_f64(b);
+        let b2 = vld1q_f64(b.add(2));
+
+        let a1 = vld1q_f64(a);
+        let a2 = vld1q_f64(a.add(2));
+
+        ab_ij_equals_ai_bj_12!(ab11, a1, b1);
+        ab_ij_equals_ai_bj_23!(ab11, a2, b1);
+        ab_ij_equals_ai_bj_12!(ab12, a1, b2);
+        ab_ij_equals_ai_bj_23!(ab12, a2, b2);
+
+        let a3 = vld1q_f64(a.add(4));
+        let a4 = vld1q_f64(a.add(6));
+
+        ab_ij_equals_ai_bj_12!(ab21, a3, b1);
+        ab_ij_equals_ai_bj_23!(ab21, a4, b1);
+        ab_ij_equals_ai_bj_12!(ab22, a3, b2);
+        ab_ij_equals_ai_bj_23!(ab22, a4, b2);
+
+        a = a.add(MR);
+        b = b.add(NR);
+    }
+
+    macro_rules! c {
+        ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
+    }
+
+    // ab *= alpha
+    loop4!(i, ab11[i] = vmulq_n_f64(ab11[i], alpha));
+    loop4!(i, ab12[i] = vmulq_n_f64(ab12[i], alpha));
+    loop4!(i, ab21[i] = vmulq_n_f64(ab21[i], alpha));
+    loop4!(i, ab22[i] = vmulq_n_f64(ab22[i], alpha));
+
+    // load one float64x2_t from two pointers
+    macro_rules! loadq_from_pointers {
+        ($p0:expr, $p1:expr) => (
+            {
+                let v = vld1q_dup_f64($p0);
+                let v = vld1q_lane_f64($p1, v, 1);
+                v
+            }
+        );
+    }
+
+    if beta != 0. {
+        // load existing value in C
+        let mut c11 = [vmovq_n_f64(0.); 4];
+        let mut c12 = [vmovq_n_f64(0.); 4];
+        let mut c21 = [vmovq_n_f64(0.); 4];
+        let mut c22 = [vmovq_n_f64(0.); 4];
+
+        if csc == 1 {
+            loop4!(i, c11[i] = vld1q_f64(c![i + 0, 0]));
+            loop4!(i, c12[i] = vld1q_f64(c![i + 0, 2]));
+            loop4!(i, c21[i] = vld1q_f64(c![i + 4, 0]));
+            loop4!(i, c22[i] = vld1q_f64(c![i + 4, 2]));
+        } else {
+            loop4!(i, c11[i] = loadq_from_pointers!(c![i + 0, 0], c![i + 0, 1]));
+            loop4!(i, c12[i] = loadq_from_pointers!(c![i + 0, 2], c![i + 0, 3]));
+            loop4!(i, c21[i] = loadq_from_pointers!(c![i + 4, 0], c![i + 4, 1]));
+            loop4!(i, c22[i] = loadq_from_pointers!(c![i + 4, 2], c![i + 4, 3]));
+        }
+
+        let betav = vmovq_n_f64(beta);
+
+        // ab += β C
+        loop4!(i, ab11[i] = vfmaq_f64(ab11[i], c11[i], betav));
+        loop4!(i, ab12[i] = vfmaq_f64(ab12[i], c12[i], betav));
+        loop4!(i, ab21[i] = vfmaq_f64(ab21[i], c21[i], betav));
+        loop4!(i, ab22[i] = vfmaq_f64(ab22[i], c22[i], betav));
+    }
+
+    // c <- ab
+    // which is in full
+    //   C <- α A B (+ β C)
+    if csc == 1 {
+        loop4!(i, vst1q_f64(c![i + 0, 0], ab11[i]));
+        loop4!(i, vst1q_f64(c![i + 0, 2], ab12[i]));
+        loop4!(i, vst1q_f64(c![i + 4, 0], ab21[i]));
+        loop4!(i, vst1q_f64(c![i + 4, 2], ab22[i]));
+    } else {
+        loop4!(i, vst1q_lane_f64(c![i + 0, 0], ab11[i], 0));
+        loop4!(i, vst1q_lane_f64(c![i + 0, 1], ab11[i], 1));
+
+        loop4!(i, vst1q_lane_f64(c![i + 0, 2], ab12[i], 0));
+        loop4!(i, vst1q_lane_f64(c![i + 0, 3], ab12[i], 1));
+
+        loop4!(i, vst1q_lane_f64(c![i + 4, 0], ab21[i], 0));
+        loop4!(i, vst1q_lane_f64(c![i + 4, 1], ab21[i], 1));
+
+        loop4!(i, vst1q_lane_f64(c![i + 4, 2], ab22[i], 0));
+        loop4!(i, vst1q_lane_f64(c![i + 4, 3], ab22[i], 1));
+    }
+}
+
 #[inline]
 unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
                                    beta: T, c: *mut T, rsc: isize, csc: isize)
@@ -830,8 +1004,36 @@ mod tests {
         }
     }
 
+    #[cfg(any(target_arch="aarch64"))]
+    mod test_kernel_aarch64 {
+        use super::test_a_kernel;
+        use super::super::*;
+        #[cfg(feature = "std")]
+        use std::println;
+
+        macro_rules! test_arch_kernels_aarch64 {
+            ($($feature_name:tt, $name:ident, $kernel_ty:ty),*) => {
+                $(
+                #[test]
+                fn $name() {
+                    if is_aarch64_feature_detected_!($feature_name) {
+                        test_a_kernel::<$kernel_ty, _>(stringify!($name));
+                    } else {
+                        #[cfg(feature = "std")]
+                        println!("Skipping, host does not have feature: {:?}", $feature_name);
+                    }
+                }
+                )*
+            }
+        }
+
+        test_arch_kernels_aarch64! {
+            "neon", neon, KernelNeon
+        }
+    }
+
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-    mod test_arch_kernels {
+    mod test_kernel_x86 {
         use super::test_a_kernel;
         use super::super::*;
         #[cfg(feature = "std")]

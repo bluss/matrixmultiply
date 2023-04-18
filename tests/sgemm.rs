@@ -471,6 +471,9 @@ where
                  maximal, rel_diff_max, n_diffs);
     }
 
+    eprintln!("c1: {:?}, {}, {}", c1, rs_c1, cs_c1);
+    eprintln!("c2: {:?}, {}, {}", c2, rs_c2, cs_c2);
+
     if exact {
         assert_eq!(0, n_diffs,
                    "C1 == C2 assertion failed for matrix of size {}x{} with first failing element at index={:?}",

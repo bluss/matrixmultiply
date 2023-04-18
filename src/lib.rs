@@ -148,9 +148,15 @@ mod threading;
 mod aligned_alloc;
 mod util;
 
+#[macro_use]
+mod archmacros;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_use]
 mod x86;
+#[cfg(any(target_arch = "aarch64"))]
+#[macro_use]
+mod aarch64;
+
 mod dgemm_kernel;
 mod sgemm_kernel;
 

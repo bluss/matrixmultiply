@@ -193,6 +193,10 @@ pub(crate) mod test {
         }
     }
 
+    /// Assert that we can compute A I == A and I B == B for the kernel (truncated, if needed)
+    ///
+    /// Tests C col major and row major
+    /// Tests beta == 0 (and no other option)
     pub(crate) fn test_a_kernel<K, T>(_name: &str)
     where
         K: GemmKernel<Elem = T>,

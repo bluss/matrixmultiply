@@ -50,6 +50,17 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.3
+
+  - Attempt to fix macos bug #55 again (manifesting as a debug assertion, only
+    in debug builds.)
+
+  - Updated comments for x86 kernels by @Tastaturtaste
+
+  - Updates to MIRI/CI by @jturner314
+
+  - Silenced Send/Sync future compatibility warnings for a raw pointer wrapper
+
 - 0.3.2
 
   - Add optional feature ``cgemm`` for complex matmult functions ``cgemm`` and

@@ -51,12 +51,17 @@
 //!   on all targets. These may depend on autovectorization to perform well.
 //!
 //! - *x86* and *x86-64* features can be detected at runtime by default or
-//!   compile time (if enabled), and the crate following kernel variants are
+//!   compile time (if enabled), and the following kernel variants are
 //!   implemented:
 //!
 //!   - `fma`
 //!   - `avx`
 //!   - `sse2`
+//!
+//! - *aarch64* features can be detected at runtime by default or compile time
+//!   (if enabled), and the following kernel variants are implemented:
+//!
+//!   - `neon`
 //!
 //! ## Features
 //!
@@ -116,8 +121,10 @@
 //! This version requires Rust 1.41.1 or later; the crate follows a carefully
 //! considered upgrade policy, where updating the minimum Rust version is not a breaking
 //! change.
+//!
+//! Some features are enabled with later versions: from Rust 1.61 AArch64 NEON support.
 
-#![doc(html_root_url = "https://docs.rs/matrixmultiply/0.2/")]
+#![doc(html_root_url = "https://docs.rs/matrixmultiply/0.3/")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(not(feature = "std"))]

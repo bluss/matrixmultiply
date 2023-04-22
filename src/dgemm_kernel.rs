@@ -27,6 +27,7 @@ struct KernelFma;
 struct KernelSse2;
 
 #[cfg(target_arch="aarch64")]
+#[cfg(has_aarch64_simd)]
 struct KernelNeon;
 
 struct KernelFallback;
@@ -53,6 +54,7 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     }
 
     #[cfg(target_arch="aarch64")]
+    #[cfg(has_aarch64_simd)]
     {
         if is_aarch64_feature_detected_!("neon") {
             return selector.select(KernelNeon);
@@ -174,6 +176,7 @@ impl GemmKernel for KernelSse2 {
 }
 
 #[cfg(target_arch="aarch64")]
+#[cfg(has_aarch64_simd)]
 impl GemmKernel for KernelNeon {
     type Elem = T;
 
@@ -821,6 +824,7 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
 }
 
 #[cfg(target_arch="aarch64")]
+#[cfg(has_aarch64_simd)]
 #[target_feature(enable="neon")]
 unsafe fn kernel_target_neon(k: usize, alpha: T, a: *const T, b: *const T,
                              beta: T, c: *mut T, rsc: isize, csc: isize)
@@ -1005,6 +1009,7 @@ mod tests {
     }
 
     #[cfg(any(target_arch="aarch64"))]
+    #[cfg(has_aarch64_simd)]
     mod test_kernel_aarch64 {
         use super::test_a_kernel;
         use super::super::*;

@@ -590,6 +590,7 @@ unsafe fn c_to_masked_ab_beta_c<T, K>(beta: T,
 }
 
 // Compute just C ← βC
+#[inline(never)]
 unsafe fn c_to_beta_c<T>(m: usize, n: usize, beta: T,
                          c: *mut T, rsc: isize, csc: isize)
     where T: Element

@@ -283,7 +283,7 @@ unsafe fn gemm_loop<K>(
     let thread_config = LoopThreadConfig::new::<K>(m, k, n, nthreads);
     let nap = thread_config.num_pack_a();
 
-    let (mut packing_buffer, ap_size) = make_packing_buffer::<K>(m, k, n, nap);
+    let (mut packing_buffer, ap_size, bp_size) = make_packing_buffer::<K>(m, k, n, nap);
     let app = Ptr(packing_buffer.ptr_mut());
     let bpp = app.add(ap_size * nap);
 
@@ -302,7 +302,8 @@ unsafe fn gemm_loop<K>(
             let a = a.stride_offset(csa, kkc * l4);
 
             // Pack B -> B~
-            pack::<K::NRTy, _>(kc, nc, bpp.ptr(), b.ptr(), csb, rsb);
+            pack::<K::NRTy, _>(kc, nc, slice::from_raw_parts_mut(bpp.ptr(), bp_size),
+                               b.ptr(), csb, rsb);
 
             // First time writing to C, use user's `beta`, else accumulate
             let betap = if l4 == 0 { beta } else { <_>::one() };
@@ -321,7 +322,8 @@ unsafe fn gemm_loop<K>(
                     let c = c.stride_offset(rsc, kmc * l3);
 
                     // Pack A -> A~
-                    pack::<K::MRTy, _>(kc, mc, app.ptr(), a.ptr(), rsa, csa);
+                    pack::<K::MRTy, _>(kc, mc, slice::from_raw_parts_mut(app.ptr(), ap_size),
+                                       a.ptr(), rsa, csa);
 
                     // LOOP 2 and 1
                     gemm_packed::<K>(nc, kc, mc,
@@ -430,8 +432,9 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
 ///
 /// na: Number of buffers to alloc for A
 ///
-/// Return packing buffer and size of A~ (The offset to B~ is A~ size times `na`).
-unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize, na: usize) -> (Alloc<K::Elem>, usize)
+/// Return packing buffer and size of A~ (The offset to B~ is A~ size times `na`), size of B~.
+unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize, na: usize)
+    -> (Alloc<K::Elem>, usize, usize)
     where K: GemmKernel,
 {
     // max alignment requirement is a multiple of min(MR, NR) * sizeof<Elem>
@@ -452,7 +455,7 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize, na: usize) -> (Al
              nelem, apack_size, bpack_size,
              m,k,n, na);
 
-    (Alloc::new(nelem, K::align_to()), apack_size)
+    (Alloc::new(nelem, K::align_to()), apack_size, bpack_size)
 }
 
 /// offset the ptr forwards to align to a specific byte count
@@ -478,11 +481,15 @@ unsafe fn align_ptr<T>(align_to: usize, mut ptr: *mut T) -> *mut T {
 /// + csa: column stride
 ///
 /// + MR: kernel rows/columns that we round up to
-unsafe fn pack<MR, T>(kc: usize, mc: usize, pack: *mut T,
+// If one of pack and a is of a reference type, it gets a noalias annotation which
+// gives benefits to optimization. The packing buffer is contiguous so it can be passed as a slice
+// here.
+unsafe fn pack<MR, T>(kc: usize, mc: usize, pack: &mut [T],
                       a: *const T, rsa: isize, csa: isize)
     where T: Element,
           MR: ConstNum,
 {
+    let pack = pack.as_mut_ptr();
     let mr = MR::VALUE;
     let mut p = 0; // offset into pack
 

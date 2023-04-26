@@ -76,12 +76,21 @@ macro_rules! unroll_by {
 #[cfg(not(debug_assertions))]
 macro_rules! unroll_by {
     ($by:tt => $ntimes:expr, $e:expr) => {{
+        // using while loop to avoid problems
+        // with requiring inlining of foor loop parts
         let k = $ntimes;
-        for _ in 0..k / $by {
+        let mut _index = 0;
+        let _target = k / $by;
+        while _index < _target {
             repeat!($by $e);
+            _index += 1;
         }
-        for _ in 0..k % $by {
-            $e
+
+        let mut _index = 0;
+        let _target = k % $by;
+        while _index < _target {
+            $e;
+            _index += 1;
         }
     }}
 }

@@ -50,6 +50,15 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.4
+
+  - Sgemm, dgemm microkernel implementations for AArch64 NEON (ARM)
+    Matrixmultiply now uses autocfg to detect rust version to enable these kernels
+    when AArch64 intrinsics are available from Rust 1.61.
+
+  - Small change to matrix packing functions so that they in some cases optimize
+    better due to improvements to pointer alias information.
+
 - 0.3.3
 
   - Attempt to fix macos bug #55 again (manifesting as a debug assertion, only

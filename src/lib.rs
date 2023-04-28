@@ -1,4 +1,4 @@
-// Copyright 2016 - 2021 Ulrik Sverdrup "bluss"
+// Copyright 2016 - 2023 Ulrik Sverdrup "bluss"
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -74,10 +74,10 @@
 //! `Cargo.toml`:
 //!
 //! ```toml
-//! matrixmultiply = { version = "0.2", default-features = false }
+//! matrixmultiply = { version = "0.3", default-features = false }
 //! ```
 //!
-//! Runtime CPU feature detection is available only when `std` is enabled.
+//! Runtime CPU feature detection is available **only** when `std` is enabled.
 //! Without the `std` feature, the crate uses special CPU features only if they
 //! are enabled at compile time. (To enable CPU features at compile time, pass
 //! the relevant

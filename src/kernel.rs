@@ -7,6 +7,7 @@
 // except according to those terms.
 
 use crate::archparam;
+use crate::packing::pack;
 
 /// General matrix multiply kernel
 pub(crate) trait GemmKernel {
@@ -34,6 +35,33 @@ pub(crate) trait GemmKernel {
     fn kc() -> usize { archparam::S_KC }
     #[inline(always)]
     fn mc() -> usize { archparam::S_MC }
+
+    /// Pack matrix A into its packing buffer.
+    ///
+    /// See pack for more documentation.
+    ///
+    /// Override only if the default packing function does not
+    /// use the right layout.
+    #[inline]
+    unsafe fn pack_mr(kc: usize, mc: usize, pack_buf: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        pack::<Self::MRTy, _>(kc, mc, pack_buf, a, rsa, csa)
+    }
+
+    /// Pack matrix B into its packing buffer
+    ///
+    /// See pack for more documentation.
+    ///
+    /// Override only if the default packing function does not
+    /// use the right layout.
+    #[inline]
+    unsafe fn pack_nr(kc: usize, mc: usize, pack_buf: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        pack::<Self::NRTy, _>(kc, mc, pack_buf, a, rsa, csa)
+    }
+
 
     /// Matrix multiplication kernel
     ///

@@ -21,9 +21,12 @@ use crate::x86::{FusedMulAdd, AvxMulAdd, SMultiplyAdd};
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelAvx;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+struct KernelFmaAvx2;
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFma;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelSse2;
+
 #[cfg(target_arch="aarch64")]
 #[cfg(has_aarch64_simd)]
 struct KernelNeon;
@@ -42,6 +45,9 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
         if is_x86_feature_detected_!("fma") {
+            if is_x86_feature_detected_!("avx2") {
+                return selector.select(KernelFmaAvx2);
+            }
             return selector.select(KernelFma);
         } else if is_x86_feature_detected_!("avx") {
             return selector.select(KernelAvx);
@@ -115,6 +121,54 @@ impl GemmKernel for KernelFma {
     fn kc() -> usize { archparam::S_KC }
     #[inline(always)]
     fn mc() -> usize { archparam::S_MC }
+
+    #[inline(always)]
+    unsafe fn kernel(
+        k: usize,
+        alpha: T,
+        a: *const T,
+        b: *const T,
+        beta: T,
+        c: *mut T, rsc: isize, csc: isize) {
+        kernel_target_fma(k, alpha, a, b, beta, c, rsc, csc)
+    }
+}
+
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+impl GemmKernel for KernelFmaAvx2 {
+    type Elem = T;
+
+    type MRTy = <KernelAvx as GemmKernel>::MRTy;
+    type NRTy = <KernelAvx as GemmKernel>::NRTy;
+
+    #[inline(always)]
+    fn align_to() -> usize { KernelAvx::align_to() }
+
+    #[inline(always)]
+    fn always_masked() -> bool { KernelAvx::always_masked() }
+
+    #[inline(always)]
+    fn nc() -> usize { archparam::S_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::S_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::S_MC }
+
+    #[inline]
+    unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        // safety: Avx2 is enabled
+        crate::packing::pack_avx2::<Self::MRTy, T>(kc, mc, pack, a, rsa, csa)
+    }
+
+    #[inline]
+    unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        // safety: Avx2 is enabled
+        crate::packing::pack_avx2::<Self::NRTy, T>(kc, mc, pack, a, rsa, csa)
+    }
 
     #[inline(always)]
     unsafe fn kernel(

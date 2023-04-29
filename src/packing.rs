@@ -31,6 +31,30 @@ pub(crate) unsafe fn pack<MR, T>(kc: usize, mc: usize, pack: &mut [T],
     where T: Element,
           MR: ConstNum,
 {
+    pack_impl::<MR, T>(kc, mc, pack, a, rsa, csa)
+}
+
+/// Specialized for AVX2
+/// Safety: Requires AVX2
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+#[target_feature(enable="avx2")]
+pub(crate) unsafe fn pack_avx2<MR, T>(kc: usize, mc: usize, pack: &mut [T],
+                                     a: *const T, rsa: isize, csa: isize)
+    where T: Element,
+          MR: ConstNum,
+{
+    pack_impl::<MR, T>(kc, mc, pack, a, rsa, csa)
+}
+
+/// Pack implementation, see pack above for docs.
+///
+/// Uses inline(always) so that it can be instantiated for different target features.
+#[inline(always)]
+unsafe fn pack_impl<MR, T>(kc: usize, mc: usize, pack: &mut [T],
+                           a: *const T, rsa: isize, csa: isize)
+    where T: Element,
+          MR: ConstNum,
+{
     let pack = pack.as_mut_ptr();
     let mr = MR::VALUE;
     let mut p = 0; // offset into pack

@@ -13,6 +13,8 @@ use crate::archparam;
 use crate::cgemm_common::pack_complex;
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+struct KernelAvx2;
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFma;
 
 struct KernelFallback;
@@ -31,6 +33,9 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
         if is_x86_feature_detected_!("fma") {
+            if is_x86_feature_detected_!("avx2") {
+                return selector.select(KernelAvx2);
+            }
             return selector.select(KernelFma);
         }
     }
@@ -39,6 +44,40 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
 
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop2!($j, $e) }; }
+
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+impl GemmKernel for KernelAvx2 {
+    type Elem = T;
+
+    type MRTy = U4;
+    type NRTy = U2;
+
+    #[inline(always)]
+    fn align_to() -> usize { 32 }
+
+    #[inline(always)]
+    fn always_masked() -> bool { KernelFallback::always_masked() }
+
+    #[inline(always)]
+    fn nc() -> usize { archparam::Z_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::Z_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::Z_MC }
+
+    pack_methods!{}
+
+    #[inline(always)]
+    unsafe fn kernel(
+        k: usize,
+        alpha: T,
+        a: *const T,
+        b: *const T,
+        beta: T,
+        c: *mut T, rsc: isize, csc: isize) {
+        kernel_target_avx2(k, alpha, a, b, beta, c, rsc, csc)
+    }
+}
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 impl GemmKernel for KernelFma {
@@ -109,10 +148,17 @@ impl GemmKernel for KernelFallback {
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 kernel_fallback_impl_complex! {
-    // instantiate fma separately so that it's inlined here
-    [inline target_feature(enable="fma")] kernel_target_fma, T, TReal, KernelFallback::MR, KernelFallback::NR, 2
+    // instantiate fma separately
+    [inline target_feature(enable="fma") target_feature(enable="avx2")]
+    kernel_target_avx2, T, TReal, KernelAvx2::MR, KernelAvx2::NR, 4
 }
 
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+kernel_fallback_impl_complex! {
+    // instantiate fma separately
+    [inline target_feature(enable="fma")]
+    kernel_target_fma, T, TReal, KernelFma::MR, KernelFma::NR, 2
+}
 
 kernel_fallback_impl_complex! { [inline] kernel_fallback_impl, T, TReal, KernelFallback::MR, KernelFallback::NR, 1 }
 
@@ -154,7 +200,8 @@ mod tests {
         }
 
         test_arch_kernels_x86! {
-            "fma", fma, KernelFma
+            "fma", fma, KernelFma,
+            "avx2", avx2, KernelAvx2
         }
     }
 }

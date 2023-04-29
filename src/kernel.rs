@@ -138,7 +138,7 @@ pub(crate) type c64 = [f64; 2];
 impl Element for c32 {
     fn zero() -> Self { [0., 0.] }
     fn one() -> Self { [1., 0.] }
-    fn test_value() -> Self { [1., 0.5] }
+    fn test_value() -> Self { [2., 1.] }
     fn is_zero(&self) -> bool { *self == [0., 0.] }
 
     #[inline(always)]
@@ -157,7 +157,7 @@ impl Element for c32 {
 impl Element for c64 {
     fn zero() -> Self { [0., 0.] }
     fn one() -> Self { [1., 0.] }
-    fn test_value() -> Self { [1., 0.5] }
+    fn test_value() -> Self { [2., 1.] }
     fn is_zero(&self) -> bool { *self == [0., 0.] }
 
     #[inline(always)]
@@ -289,6 +289,60 @@ pub(crate) mod test {
         }
         let common_len = Ord::min(b.len(), c.len());
         assert_eq!(&b[..common_len], &c[..common_len]);
+    }
+
+    #[cfg(feature="cgemm")]
+    /// Assert that we can compute A I == A for the kernel (truncated, if needed)
+    ///
+    /// Tests C col major and row major
+    /// Tests beta == 0 (and no other option)
+    pub(crate) fn test_complex_packed_kernel<K, T, TReal>(_name: &str)
+    where
+        K: GemmKernel<Elem = T>,
+        T: Element + fmt::Debug + PartialEq,
+        TReal: Element + fmt::Debug + PartialEq,
+    {
+        use crate::cgemm_common::pack_complex;
+
+        const K: usize = 16;
+        let mr = K::MR;
+        let nr = K::NR;
+
+        // 1. Test A I == A (variables a, b, c)
+        // b looks like an identity matrix (truncated, depending on MR/NR)
+
+        let mut a = aligned_alloc::<K>(T::zero(), mr * K);
+        let mut apack = aligned_alloc::<K>(T::zero(), mr * K);
+        let mut b = aligned_alloc::<K>(T::zero(), nr * K);
+        let mut bpack = aligned_alloc::<K>(T::zero(), nr * K);
+
+        let mut count = 1;
+        for i in 0..mr {
+            for j in 0..K {
+                for _ in 0..count {
+                    a[i * K + j].add_assign(T::test_value());
+                }
+                count += 1;
+            }
+        }
+
+        for i in 0..Ord::min(K, nr) {
+            b[i + i * nr] = T::one();
+        }
+
+        // unlike test_a_kernel, we need custom packing for these kernels
+        unsafe {
+            pack_complex::<K::MRTy, T, TReal>(K, mr, &mut apack[..], a.ptr_mut(), 1, mr as isize);
+            pack_complex::<K::NRTy, T, TReal>(nr, K, &mut bpack[..], b.ptr_mut(), nr as isize, 1);
+        }
+
+        let mut c = vec![T::zero(); mr * nr];
+        unsafe {
+            // col major C
+            K::kernel(K, T::one(), apack.as_ptr(), bpack.as_ptr(), T::zero(), c.as_mut_ptr(), 1, mr as isize);
+        }
+        let common_len = Ord::min(a.len(), c.len());
+        assert_eq!(&a[..common_len], &c[..common_len]);
     }
 
 }

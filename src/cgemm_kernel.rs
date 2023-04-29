@@ -17,6 +17,10 @@ struct KernelAvx2;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFma;
 
+#[cfg(target_arch = "aarch64")]
+#[cfg(has_aarch64_simd)]
+struct KernelNeon;
+
 struct KernelFallback;
 
 type T = c32;
@@ -37,6 +41,13 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
                 return selector.select(KernelAvx2);
             }
             return selector.select(KernelFma);
+        }
+    }
+    #[cfg(target_arch = "aarch64")]
+    #[cfg(has_aarch64_simd)]
+    {
+        if is_aarch64_feature_detected_!("neon") {
+            return selector.select(KernelNeon);
         }
     }
     return selector.select(KernelFallback);
@@ -110,6 +121,41 @@ impl GemmKernel for KernelFma {
     }
 }
 
+#[cfg(target_arch = "aarch64")]
+#[cfg(has_aarch64_simd)]
+impl GemmKernel for KernelNeon {
+    type Elem = T;
+
+    type MRTy = U4;
+    type NRTy = U2;
+
+    #[inline(always)]
+    fn align_to() -> usize { 16 }
+
+    #[inline(always)]
+    fn always_masked() -> bool { KernelFallback::always_masked() }
+
+    #[inline(always)]
+    fn nc() -> usize { archparam::C_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::C_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::C_MC }
+
+    pack_methods!{}
+
+    #[inline(always)]
+    unsafe fn kernel(
+        k: usize,
+        alpha: T,
+        a: *const T,
+        b: *const T,
+        beta: T,
+        c: *mut T, rsc: isize, csc: isize) {
+        kernel_target_neon(k, alpha, a, b, beta, c, rsc, csc)
+    }
+}
+
 impl GemmKernel for KernelFallback {
     type Elem = T;
 
@@ -170,6 +216,22 @@ kernel_fallback_impl_complex! {
     kernel_target_fma, T, TReal, KernelFma::MR, KernelFma::NR, 2
 }
 
+// Kernel neon
+
+#[cfg(target_arch = "aarch64")]
+#[cfg(has_aarch64_simd)]
+macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
+#[cfg(target_arch = "aarch64")]
+#[cfg(has_aarch64_simd)]
+macro_rules! loop_n { ($j:ident, $e:expr) => { loop2!($j, $e) }; }
+
+#[cfg(target_arch = "aarch64")]
+#[cfg(has_aarch64_simd)]
+kernel_fallback_impl_complex! {
+    [inline target_feature(enable="neon")] [fma_yes]
+    kernel_target_neon, T, TReal, KernelNeon::MR, KernelNeon::NR, 1
+}
+
 // Kernel fallback
 
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
@@ -193,6 +255,34 @@ mod tests {
     #[test]
     fn test_kernel_fallback_impl() {
         test_complex_packed_kernel::<KernelFallback, _, TReal>("kernel");
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[cfg(has_aarch64_simd)]
+    mod test_kernel_aarch64 {
+        use super::test_complex_packed_kernel;
+        use super::super::*;
+        #[cfg(feature = "std")]
+        use std::println;
+        macro_rules! test_arch_kernels {
+            ($($feature_name:tt, $name:ident, $kernel_ty:ty),*) => {
+                $(
+                #[test]
+                fn $name() {
+                    if is_aarch64_feature_detected_!($feature_name) {
+                        test_complex_packed_kernel::<$kernel_ty, _, TReal>(stringify!($name));
+                    } else {
+                        #[cfg(feature = "std")]
+                        println!("Skipping, host does not have feature: {:?}", $feature_name);
+                    }
+                }
+                )*
+            }
+        }
+
+        test_arch_kernels! {
+            "neon", neon, KernelNeon
+        }
     }
 
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]

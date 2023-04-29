@@ -13,7 +13,6 @@ rustup component add miri
 cargo miri setup
 
 # Disable isolation for num_cpus::get_physical.
-# Also add flags for additional checks.
-MIRIFLAGS="-Zmiri-disable-isolation -Zmiri-tag-raw-pointers -Zmiri-check-number-validity" \
+MIRIFLAGS="-Zmiri-disable-isolation" \
 MMTEST_FAST_TEST=1 \
     cargo miri test "$@"

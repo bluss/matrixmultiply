@@ -32,9 +32,26 @@ fn test_cgemm() {
 
 #[cfg(feature="cgemm")]
 #[test]
+fn test_cgemm_complex() {
+    test_complex::<c32>(4, 4, 4, true);
+    test_complex::<c32>(16, 32, 8, false);
+    test_complex::<c32>(63, 65, 67, false);
+}
+
+#[cfg(feature="cgemm")]
+#[test]
 fn test_zgemm() {
     test_gemm::<c64>();
 }
+
+#[cfg(feature="cgemm")]
+#[test]
+fn test_zgemm_complex() {
+    test_complex::<c64>(4, 4, 4, true);
+    test_complex::<c64>(16, 32, 8, false);
+    test_complex::<c64>(63, 65, 67, false);
+}
+
 
 #[test]
 fn test_sgemm_strides() {
@@ -277,6 +294,65 @@ fn test_scale<F>(m: usize, k: usize, n: usize, small: bool)
 }
 
 
+#[cfg(feature="cgemm")]
+#[cfg(test)]
+fn test_complex<F>(m: usize, k: usize, n: usize, small: bool)
+    where F: Gemm + Float
+{
+    if !small && FAST_TEST.is_some() {
+        return;
+    }
+
+    let (m, k, n) = (m, k, n);
+    let mut a = vec![F::zero(); m * k]; 
+    let mut b = vec![F::zero(); k * n];
+    let mut c1 = vec![F::zero(); m * n];
+    let mut c2 = vec![F::zero(); m * n];
+
+    for (i, elt) in a.iter_mut().enumerate() {
+        *elt = F::from2(i as i64, -(i as i64));
+    }
+    for (i, elt) in b.iter_mut().enumerate() {
+        *elt = F::from2(-(i as i64), i as i64);
+    }
+
+    let alpha1 = F::from2(3, 2);
+    let beta1 = F::zero();
+
+    unsafe {
+        // C1 = alpha1 A B
+        F::gemm(
+            m, k, n,
+            alpha1,
+            a.as_ptr(), k as isize, 1,
+            b.as_ptr(), n as isize, 1,
+            beta1,
+            c1.as_mut_ptr(), n as isize, 1,
+        );
+    }
+    // reference computation
+    // matmul
+    for i in 0..m {
+        for j in 0..n {
+            for ki in 0..k {
+                c2[i * n + j].mul_add_assign(a[i * k + ki], b[ki * n + j]);
+            }
+        }
+    }
+
+    // multiply by alpha
+    for i in 0..m {
+        for j in 0..n {
+            let elt = &mut c2[i * n + j];
+            let mut scaled = F::zero();
+            scaled.mul_add_assign(alpha1, *elt);
+            *elt = scaled;
+        }
+    }
+
+    assert_matrix_equal(m, n, &c1, n as isize, 1, &c2, n as isize, 1, small);
+    println!("passed matrix with id input M={}, N={}", m, n);
+}
 
 //
 // Custom stride tests

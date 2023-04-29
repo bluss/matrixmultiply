@@ -21,6 +21,7 @@ pub trait Float : Copy + std::fmt::Debug + PartialEq {
     // absolute value as f64
     fn abs_f64(self) -> f64;
     fn relative_error_scale() -> f64;
+    fn mul_add_assign(&mut self, x: Self, y: Self);
 }
 
 impl Float for f32 {
@@ -33,6 +34,9 @@ impl Float for f32 {
     fn diff(self, rhs: Self) -> Self { self - rhs }
     fn abs_f64(self) -> f64 { self.abs() as f64 }
     fn relative_error_scale() -> f64 { 1e-6 }
+    fn mul_add_assign(&mut self, x: Self, y: Self) {
+        *self += x * y;
+    }
 }
 
 impl Float for f64 {
@@ -45,6 +49,9 @@ impl Float for f64 {
     fn diff(self, rhs: Self) -> Self { self - rhs }
     fn abs_f64(self) -> f64 { self.abs() }
     fn relative_error_scale() -> f64 { 1e-12 }
+    fn mul_add_assign(&mut self, x: Self, y: Self) {
+        *self += x * y;
+    }
 }
 
 #[allow(non_camel_case_types)]
@@ -72,6 +79,11 @@ impl Float for c32 {
         (self[0].powi(2) + self[1].powi(2)).sqrt() as f64
     }
     fn relative_error_scale() -> f64 { 1e-6 }
+    fn mul_add_assign(&mut self, x: Self, y: Self) {
+        let [re, im] = c32_mul(x, y);
+        self[0] += re;
+        self[1] += im;
+    }
 }
 
 #[cfg(feature="cgemm")]
@@ -92,8 +104,29 @@ impl Float for c64 {
         (self[0].powi(2) + self[1].powi(2)).sqrt()
     }
     fn relative_error_scale() -> f64 { 1e-12 }
+    fn mul_add_assign(&mut self, x: Self, y: Self) {
+        let [re, im] = c64_mul(x, y);
+        self[0] += re;
+        self[1] += im;
+    }
 }
 
+
+#[cfg(feature = "cgemm")]
+#[inline(always)]
+pub(crate) fn c32_mul(x: c32, y: c32) -> c32 {
+    let [a, b] = x;
+    let [c, d] = y;
+    [a * c - b * d, b * c + a * d]
+}
+
+#[cfg(feature = "cgemm")]
+#[inline(always)]
+pub(crate) fn c64_mul(x: c64, y: c64) -> c64 {
+    let [a, b] = x;
+    let [c, d] = y;
+    [a * c - b * d, b * c + a * d]
+}
 
 
 pub trait Gemm : Sized {

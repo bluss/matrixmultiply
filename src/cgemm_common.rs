@@ -14,10 +14,26 @@ use rawpointer::PointerExt;
 use crate::kernel::Element;
 use crate::kernel::ConstNum;
 
+macro_rules! fmuladd {
+    // conceptually $dst += $a * $b, optionally use fused multiply-add
+    (fma_yes, $dst:expr, $a:expr, $b:expr) => {
+        {
+            $dst = $a.mul_add($b, $dst);
+        }
+    };
+    (fma_no, $dst:expr, $a:expr, $b:expr) => {
+        {
+            $dst += $a * $b;
+        }
+    };
+}
+
+
 // kernel fallback impl macro
 // Depends on a couple of macro and function defitions to be in scope - loop_m/_n, at, etc.
+// $fma_opt: fma_yes or fma_no to use f32::mul_add etc or not
 macro_rules! kernel_fallback_impl_complex {
-    ([$($attr:meta)*] $name:ident, $elem_ty:ty, $real_ty:ty, $mr:expr, $nr:expr, $unroll:tt) => {
+    ([$($attr:meta)*] [$fma_opt:tt] $name:ident, $elem_ty:ty, $real_ty:ty, $mr:expr, $nr:expr, $unroll:tt) => {
     $(#[$attr])*
     unsafe fn $name(k: usize, alpha: $elem_ty, a: *const $elem_ty, b: *const $elem_ty,
                     beta: $elem_ty, c: *mut $elem_ty, rsc: isize, csc: isize)
@@ -56,10 +72,11 @@ macro_rules! kernel_fallback_impl_complex {
             });
             loop_m!(i, {
                 loop_n!(j, {
-                    ab[i][j][0] += pp[i] * rr[j];
-                    ab[i][j][1] += pp[i] * ss[j];
-                    ab[i][j][0] -= qq[i] * ss[j];
-                    ab[i][j][1] += qq[i] * rr[j];
+                    // optionally use fma
+                    fmuladd!($fma_opt, ab[i][j][0], pp[i], rr[j]);
+                    fmuladd!($fma_opt, ab[i][j][1], pp[i], ss[j]);
+                    fmuladd!($fma_opt, ab[i][j][0], -qq[i], ss[j]);
+                    fmuladd!($fma_opt, ab[i][j][1], qq[i], rr[j]);
                 })
             });
 

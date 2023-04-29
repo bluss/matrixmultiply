@@ -32,10 +32,10 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     // dispatch to specific compiled versions
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
-        if is_x86_feature_detected_!("avx2") {
-            return selector.select(KernelAvx2);
-        }
         if is_x86_feature_detected_!("fma") {
+            if is_x86_feature_detected_!("avx2") {
+                return selector.select(KernelAvx2);
+            }
             return selector.select(KernelFma);
         }
     }
@@ -151,8 +151,9 @@ macro_rules! loop_n { ($j:ident, $e:expr) => { loop4!($j, $e) }; }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 kernel_fallback_impl_complex! {
-    // instantiate fma separately
-    [inline target_feature(enable="avx2")] kernel_target_avx2, T, TReal, KernelAvx2::MR, KernelAvx2::NR, 1
+    // instantiate separately
+    [inline target_feature(enable="avx2") target_feature(enable="fma")] [fma_yes]
+    kernel_target_avx2, T, TReal, KernelAvx2::MR, KernelAvx2::NR, 4
 }
 
 
@@ -164,8 +165,9 @@ macro_rules! loop_n { ($j:ident, $e:expr) => { loop4!($j, $e) }; }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 kernel_fallback_impl_complex! {
-    // instantiate fma separately
-    [inline target_feature(enable="fma")] kernel_target_fma, T, TReal, KernelFma::MR, KernelFma::NR, 2
+    // instantiate separately
+    [inline target_feature(enable="fma")] [fma_no]
+    kernel_target_fma, T, TReal, KernelFma::MR, KernelFma::NR, 2
 }
 
 // Kernel fallback
@@ -173,7 +175,10 @@ kernel_fallback_impl_complex! {
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop2!($j, $e) }; }
 
-kernel_fallback_impl_complex! { [inline(always)] kernel_fallback_impl, T, TReal, KernelFallback::MR, KernelFallback::NR, 1 }
+kernel_fallback_impl_complex! {
+    [inline(always)] [fma_no]
+    kernel_fallback_impl, T, TReal, KernelFallback::MR, KernelFallback::NR, 1
+}
 
 #[inline(always)]
 unsafe fn at(ptr: *const TReal, i: usize) -> TReal {

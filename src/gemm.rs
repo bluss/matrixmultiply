@@ -10,7 +10,6 @@
 use core::cell::UnsafeCell;
 use core::cmp::min;
 use core::mem::size_of;
-use core::ptr::copy_nonoverlapping;
 use core::slice;
 
 use crate::aligned_alloc::Alloc;
@@ -19,7 +18,6 @@ use crate::ptr::Ptr;
 use crate::util::range_chunk;
 use crate::util::round_up_to;
 
-use crate::kernel::ConstNum;
 use crate::kernel::Element;
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
@@ -302,8 +300,8 @@ unsafe fn gemm_loop<K>(
             let a = a.stride_offset(csa, kkc * l4);
 
             // Pack B -> B~
-            pack::<K::NRTy, _>(kc, nc, slice::from_raw_parts_mut(bpp.ptr(), bp_size),
-                               b.ptr(), csb, rsb);
+            K::pack_nr(kc, nc, slice::from_raw_parts_mut(bpp.ptr(), bp_size),
+                       b.ptr(), csb, rsb);
 
             // First time writing to C, use user's `beta`, else accumulate
             let betap = if l4 == 0 { beta } else { <_>::one() };
@@ -322,8 +320,8 @@ unsafe fn gemm_loop<K>(
                     let c = c.stride_offset(rsc, kmc * l3);
 
                     // Pack A -> A~
-                    pack::<K::MRTy, _>(kc, mc, slice::from_raw_parts_mut(app.ptr(), ap_size),
-                                       a.ptr(), rsa, csa);
+                    K::pack_mr(kc, mc, slice::from_raw_parts_mut(app.ptr(), ap_size),
+                               a.ptr(), rsa, csa);
 
                     // LOOP 2 and 1
                     gemm_packed::<K>(nc, kc, mc,
@@ -469,76 +467,6 @@ unsafe fn align_ptr<T>(align_to: usize, mut ptr: *mut T) -> *mut T {
         }
     }
     ptr
-}
-
-/// Pack matrix into `pack`
-///
-/// + kc: length of the micropanel
-/// + mc: number of rows/columns in the matrix to be packed
-/// + pack: packing buffer
-/// + a: matrix,
-/// + rsa: row stride
-/// + csa: column stride
-///
-/// + MR: kernel rows/columns that we round up to
-// If one of pack and a is of a reference type, it gets a noalias annotation which
-// gives benefits to optimization. The packing buffer is contiguous so it can be passed as a slice
-// here.
-unsafe fn pack<MR, T>(kc: usize, mc: usize, pack: &mut [T],
-                      a: *const T, rsa: isize, csa: isize)
-    where T: Element,
-          MR: ConstNum,
-{
-    let pack = pack.as_mut_ptr();
-    let mr = MR::VALUE;
-    let mut p = 0; // offset into pack
-
-    if rsa == 1 {
-        // if the matrix is contiguous in the same direction we are packing,
-        // copy a kernel row at a time.
-        for ir in 0..mc/mr {
-            let row_offset = ir * mr;
-            for j in 0..kc {
-                let a_row = a.stride_offset(rsa, row_offset)
-                             .stride_offset(csa, j);
-                copy_nonoverlapping(a_row, pack.add(p), mr);
-                p += mr;
-            }
-        }
-    } else {
-        // general layout case
-        for ir in 0..mc/mr {
-            let row_offset = ir * mr;
-            for j in 0..kc {
-                for i in 0..mr {
-                    let a_elt = a.stride_offset(rsa, i + row_offset)
-                                 .stride_offset(csa, j);
-                    copy_nonoverlapping(a_elt, pack.add(p), 1);
-                    p += 1;
-                }
-            }
-        }
-    }
-
-    let zero = <_>::zero();
-
-    // Pad with zeros to multiple of kernel size (uneven mc)
-    let rest = mc % mr;
-    if rest > 0 {
-        let row_offset = (mc/mr) * mr;
-        for j in 0..kc {
-            for i in 0..mr {
-                if i < rest {
-                    let a_elt = a.stride_offset(rsa, i + row_offset)
-                                 .stride_offset(csa, j);
-                    copy_nonoverlapping(a_elt, pack.add(p), 1);
-                } else {
-                    *pack.add(p) = zero;
-                }
-                p += 1;
-            }
-        }
-    }
 }
 
 /// Call the GEMM kernel with a "masked" output C.

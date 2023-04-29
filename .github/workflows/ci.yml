@@ -123,10 +123,13 @@ jobs:
         include:
           - rust: stable
             target: aarch64-unknown-linux-gnu
+            features: constconf cgemm threading
           - rust: 1.61.0
             target: aarch64-unknown-linux-gnu
+            features: cgemm
           - rust: 1.41.1  # MSRV
             target: aarch64-unknown-linux-gnu
+            features: cgemm
 
     steps:
       - uses: actions/checkout@v2
@@ -146,7 +149,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo install cross
       - name: Tests
-        run: cross test --target "${{ matrix.target }}"
+        run: cross test --target "${{ matrix.target }}" --features "${{ matrix.features }}"
         env:
           MMTEST_FAST_TEST: 1
           RUSTFLAGS: -Copt-level=2

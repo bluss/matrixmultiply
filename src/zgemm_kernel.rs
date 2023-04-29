@@ -149,18 +149,21 @@ impl GemmKernel for KernelFallback {
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 kernel_fallback_impl_complex! {
     // instantiate fma separately
-    [inline target_feature(enable="fma") target_feature(enable="avx2")]
+    [inline target_feature(enable="fma") target_feature(enable="avx2")] [fma_yes]
     kernel_target_avx2, T, TReal, KernelAvx2::MR, KernelAvx2::NR, 4
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 kernel_fallback_impl_complex! {
     // instantiate fma separately
-    [inline target_feature(enable="fma")]
+    [inline target_feature(enable="fma")] [fma_no]
     kernel_target_fma, T, TReal, KernelFma::MR, KernelFma::NR, 2
 }
 
-kernel_fallback_impl_complex! { [inline] kernel_fallback_impl, T, TReal, KernelFallback::MR, KernelFallback::NR, 1 }
+kernel_fallback_impl_complex! {
+    [inline] [fma_no]
+    kernel_fallback_impl, T, TReal, KernelFallback::MR, KernelFallback::NR, 1
+}
 
 #[inline(always)]
 unsafe fn at(ptr: *const TReal, i: usize) -> TReal {

@@ -6,14 +6,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::mem;
-use std::ptr::copy_nonoverlapping;
+use core::mem;
+use core::ptr::copy_nonoverlapping;
 
 use rawpointer::PointerExt;
 
 use crate::kernel::Element;
 use crate::kernel::ConstNum;
 
+#[cfg(feature = "std")]
 macro_rules! fmuladd {
     // conceptually $dst += $a * $b, optionally use fused multiply-add
     (fma_yes, $dst:expr, $a:expr, $b:expr) => {
@@ -22,6 +23,15 @@ macro_rules! fmuladd {
         }
     };
     (fma_no, $dst:expr, $a:expr, $b:expr) => {
+        {
+            $dst += $a * $b;
+        }
+    };
+}
+
+#[cfg(not(feature = "std"))]
+macro_rules! fmuladd {
+    ($any:tt, $dst:expr, $a:expr, $b:expr) => {
         {
             $dst += $a * $b;
         }

@@ -51,6 +51,10 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.6
+
+  - Fix the build for the combination of cgemm and no_std (#76)
+
 - 0.3.5
 
   - Significant improvements to complex matrix packing and kernels (#75)

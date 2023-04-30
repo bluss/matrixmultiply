@@ -1,16 +1,17 @@
 matrixmultiply
 ==============
 
-General matrix multiplication for f32, f64 matrices. Operates on matrices with
-general layout (they can use arbitrary row and column stride).
+General matrix multiplication for f32, f64, and complex matrices. Operates on
+matrices with general layout (they can use arbitrary row and column stride).
 
 Please read the `API documentation here`__
 
 __ https://docs.rs/matrixmultiply/
 
 
-We presently provide a few good microkernels portable and for x86-64, and
-only one operation: the general matrix-matrix multiplication (“gemm”).
+We presently provide a few good microkernels portable and for x86-64 and
+AArch64 NEON, and only one operation: the general matrix-matrix multiplication
+(“gemm”).
 
 This crate was inspired by the tmacro/microkernel approach to matrix
 multiplication that is used by the BLIS_ project.
@@ -50,9 +51,17 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.5
+
+  - Significant improvements to complex matrix packing and kernels (#75)
+
+  - Use a specialized AVX2 matrix packing function for sgemm, dgemm when this
+    feature is detected on x86-64
+
 - 0.3.4
 
   - Sgemm, dgemm microkernel implementations for AArch64 NEON (ARM)
+
     Matrixmultiply now uses autocfg to detect rust version to enable these kernels
     when AArch64 intrinsics are available from Rust 1.61.
 

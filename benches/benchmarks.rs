@@ -78,20 +78,39 @@ mat_mul! {mat_mul_f64, dgemm,
     */
 }
 
-// benchmarks combinations of inputs using various layouts
-// row-major ("c") vs column-major ("f") experiments
+/// benchmarks combinations of inputs using various layouts
+/// row-major ("c") vs column-major ("f") experiments
+///
+/// These benchmarks give information about
+///
+/// 1. Matrix packing sensitivity to input layouts (A, B layouts)
+/// 2. Microkernel sensitivity to output layouts (C layout)
+///    and performance for beta != 0. vs == 0.
+///
+/// Clike: all elements spaced at least 2 apart
+/// Flike: all elements spaced at least 2 apart
 
 enum Layout {
     C,
     F,
+    Clike,
+    Flike,
 }
 use self::Layout::*;
 
 impl Layout {
-    fn strides(&self, rs: isize, cs: isize) -> (isize, isize) {
+    fn spread(&self) -> usize {
         match *self {
-            C => (rs, cs),
-            F => (cs, rs),
+            C | F => 1,
+            Clike | Flike => 2,
+        }
+    }
+
+    fn strides(&self, rs: isize, cs: isize) -> (isize, isize) {
+        let spread = self.spread() as isize;
+        match *self {
+            C | Clike => (rs * spread, cs * spread),
+            F | Flike => (cs * spread, rs * spread),
         }
     }
 }
@@ -106,13 +125,22 @@ macro_rules! gemm_layout {
 
             fn base(bench: &mut Bencher, al: Layout, bl: Layout, cl: Layout, use_beta: bool)
             {
-                let a = vec![0.; $m * $m];
-                let b = vec![0.; $m * $m];
-                let mut c = vec![0.; $m * $m];
+                let a = vec![0.; $m * $m * al.spread()];
+                let b = vec![0.; $m * $m * bl.spread()];
+                let mut c = vec![0.; $m * $m * cl.spread()];
                 let beta = if use_beta { 0.1 } else { 0. };
+
                 let (rsa, csa) = al.strides($m, 1);
                 let (rsb, csb) = bl.strides($m, 1);
                 let (rsc, csc) = cl.strides($m, 1);
+
+                let max_stride_a = (rsa as usize) * ($m - 1) + (csa as usize) * ($m - 1);
+                let max_stride_b = (rsb as usize) * ($m - 1) + (csb as usize) * ($m - 1);
+                let max_stride_c = (rsc as usize) * ($m - 1) + (csc as usize) * ($m - 1);
+
+                debug_assert!(max_stride_a < a.len());
+                debug_assert!(max_stride_b < b.len());
+                debug_assert!(max_stride_c < c.len());
                 bench.iter(|| {
                     unsafe {
                         $gemm(
@@ -136,6 +164,11 @@ macro_rules! gemm_layout {
             pub fn nobeta_fcf(bench: &mut Bencher) { base(bench, F, C, F, false); }
             pub fn nobeta_fff(bench: &mut Bencher) { base(bench, F, F, F, false); }
 
+            pub fn nobeta_cfc_spread_yyn(bench: &mut Bencher) { base(bench, Clike, Flike, C, false); }
+            pub fn nobeta_fcc_spread_yyn(bench: &mut Bencher) { base(bench, Flike, Clike, C, false); }
+            pub fn nobeta_fcc_spread_nny(bench: &mut Bencher) { base(bench, C, F, Clike, false); }
+            pub fn nobeta_fcf_spread_nny(bench: &mut Bencher) { base(bench, C, F, Flike, false); }
+
             pub fn beta_ccc(bench: &mut Bencher) { base(bench, C, C, C, true); }
             pub fn beta_ccf(bench: &mut Bencher) { base(bench, C, C, F, true); }
             pub fn beta_fcc(bench: &mut Bencher) { base(bench, F, C, C, true); }
@@ -144,6 +177,9 @@ macro_rules! gemm_layout {
             pub fn beta_cff(bench: &mut Bencher) { base(bench, C, F, F, true); }
             pub fn beta_fcf(bench: &mut Bencher) { base(bench, F, C, F, true); }
             pub fn beta_fff(bench: &mut Bencher) { base(bench, F, F, F, true); }
+
+            pub fn beta_fcc_spread_nny(bench: &mut Bencher) { base(bench, C, F, Clike, true); }
+            pub fn beta_fcf_spread_nny(bench: &mut Bencher) { base(bench, C, F, Flike, true); }
             )+
         }
         benchmark_group!{ $modname,
@@ -156,6 +192,11 @@ macro_rules! gemm_layout {
             $modname::nobeta_fcf,
             $modname::nobeta_fff,
 
+            $modname::nobeta_cfc_spread_yyn,
+            $modname::nobeta_fcc_spread_yyn,
+            $modname::nobeta_fcc_spread_nny,
+            $modname::nobeta_fcf_spread_nny,
+
             $modname::beta_ccc,
             $modname::beta_ccf,
             $modname::beta_fcc,
@@ -163,7 +204,10 @@ macro_rules! gemm_layout {
             $modname::beta_ffc,
             $modname::beta_cff,
             $modname::beta_fcf,
-            $modname::beta_fff
+            $modname::beta_fff,
+
+            $modname::beta_fcc_spread_nny,
+            $modname::beta_fcf_spread_nny
         }
     };
 }

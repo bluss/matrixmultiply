@@ -58,7 +58,8 @@ macro_rules! kernel_fallback_impl_complex {
         let mut rr  = [<$real_ty>::zero(); NR];
         let mut ss  = [<$real_ty>::zero(); NR];
 
-        let mut ab: [[$elem_ty; NR]; MR] = [[<$elem_ty>::zero(); NR]; MR];
+        let mut abre: [[$real_ty; NR]; MR] = [[<$real_ty>::zero(); NR]; MR];
+        let mut abim: [[$real_ty; NR]; MR] = [[<$real_ty>::zero(); NR]; MR];
         let mut areal = a as *const $real_ty;
         let mut breal = b as *const $real_ty;
 
@@ -80,13 +81,18 @@ macro_rules! kernel_fallback_impl_complex {
                 rr[j] = at(breal, j);
                 ss[j] = at(bimag, j);
             });
+
+            // optionally use fma
             loop_m!(i, {
                 loop_n!(j, {
-                    // optionally use fma
-                    fmuladd!($fma_opt, ab[i][j][0], pp[i], rr[j]);
-                    fmuladd!($fma_opt, ab[i][j][1], pp[i], ss[j]);
-                    fmuladd!($fma_opt, ab[i][j][0], -qq[i], ss[j]);
-                    fmuladd!($fma_opt, ab[i][j][1], qq[i], rr[j]);
+                    fmuladd!($fma_opt, abre[i][j], pp[i], rr[j]);
+                    fmuladd!($fma_opt, abim[i][j], pp[i], ss[j]);
+                })
+            });
+            loop_m!(i, {
+                loop_n!(j, {
+                    fmuladd!($fma_opt, abre[i][j], -qq[i], ss[j]);
+                    fmuladd!($fma_opt, abim[i][j], qq[i], rr[j]);
                 })
             });
 
@@ -99,7 +105,7 @@ macro_rules! kernel_fallback_impl_complex {
         }
 
         // set C = α A B
-        loop_n!(j, loop_m!(i, *c![i, j] = mul(alpha, ab[i][j])));
+        loop_n!(j, loop_m!(i, *c![i, j] = mul(alpha, [abre[i][j], abim[i][j]])));
     }
     };
 }

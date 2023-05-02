@@ -9,11 +9,11 @@ Please read the `API documentation here`__
 __ https://docs.rs/matrixmultiply/
 
 
-We presently provide a few good microkernels portable and for x86-64 and
+We presently provide a few good microkernels, portable and for x86-64 and
 AArch64 NEON, and only one operation: the general matrix-matrix multiplication
 (“gemm”).
 
-This crate was inspired by the tmacro/microkernel approach to matrix
+This crate was inspired by the macro/microkernel approach to matrix
 multiplication that is used by the BLIS_ project.
 
 .. _BLIS: https://github.com/flame/blis
@@ -50,6 +50,11 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 
 Recent Changes
 --------------
+
+- 0.3.7
+
+  - Rename a directory, avoiding spaces in filenames, to be compatible with
+    Bazel. By @xander-zitara
 
 - 0.3.6
 

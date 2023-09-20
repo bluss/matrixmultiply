@@ -345,7 +345,6 @@ const MASK_BUF_SIZE: usize = KERNEL_MAX_SIZE + KERNEL_MAX_ALIGN - 1;
 // we don't get aligned allocations out of TLS - 16- and 8-byte
 // allocations have been seen, make the minimal align request we can.
 #[cfg_attr(not(target_os = "macos"), repr(align(32)))]
-#[cfg_attr(target_os = "macos", repr(align(8)))]
 struct MaskBuffer {
     buffer: [u8; MASK_BUF_SIZE],
 }
@@ -460,7 +459,12 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize, na: usize)
 /// offset the ptr forwards to align to a specific byte count
 /// Safety: align_to must be a power of two and ptr valid for the pointer arithmetic
 #[inline]
-unsafe fn align_ptr<T>(align_to: usize, mut ptr: *mut T) -> *mut T {
+unsafe fn align_ptr<T>(mut align_to: usize, mut ptr: *mut T) -> *mut T {
+    // always ensure minimal alignment on macos
+    if cfg!(target_os = "macos") {
+        align_to = Ord::max(align_to, 8);
+    }
+
     if align_to != 0 {
         let cur_align = ptr as usize % align_to;
         if cur_align != 0 {

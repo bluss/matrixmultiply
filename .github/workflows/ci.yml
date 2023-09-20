@@ -124,10 +124,7 @@ jobs:
           - rust: stable
             target: aarch64-unknown-linux-gnu
             features: constconf cgemm threading
-          - rust: 1.61.0
-            target: aarch64-unknown-linux-gnu
-            features: cgemm
-          - rust: 1.41.1  # MSRV
+          - rust: 1.65.0
             target: aarch64-unknown-linux-gnu
             features: cgemm
 

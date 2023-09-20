@@ -51,6 +51,11 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.8
+
+  - Lower alignment requirement for thread local storage value on macos, since
+    it's was not respected and caused a debug assertion. (Previous issue #55)
+
 - 0.3.7
 
   - Rename a directory, avoiding spaces in filenames, to be compatible with

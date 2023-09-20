@@ -342,9 +342,10 @@ const MASK_BUF_SIZE: usize = KERNEL_MAX_SIZE + KERNEL_MAX_ALIGN - 1;
 
 // Pointers into buffer will be manually aligned anyway, due to
 // bugs we have seen on certain platforms (macos) that look like
-// we don't get more than 16-aligned allocations out of TLS
+// we don't get aligned allocations out of TLS - 16- and 8-byte
+// allocations have been seen, make the minimal align request we can.
 #[cfg_attr(not(target_os = "macos"), repr(align(32)))]
-#[cfg_attr(target_os = "macos", repr(align(16)))]
+#[cfg_attr(target_os = "macos", repr(align(8)))]
 struct MaskBuffer {
     buffer: [u8; MASK_BUF_SIZE],
 }

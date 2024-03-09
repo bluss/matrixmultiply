@@ -151,6 +151,19 @@ jobs:
           MMTEST_FAST_TEST: 1
           RUSTFLAGS: -Copt-level=2
 
+  cargo-careful:
+    runs-on: ubuntu-latest
+    name: cargo-careful
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-careful
+        run: cargo install cargo-careful
+      - run: cargo careful test -Zcareful-sanitizer=thread --features=threading,cgemm
+
   miri:
     runs-on: ubuntu-latest
     steps:

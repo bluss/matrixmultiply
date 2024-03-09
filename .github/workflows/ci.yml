@@ -56,14 +56,13 @@ jobs:
             features: threading cgemm
             test_examples: yes_examples
 
+    name: tests/${{ matrix.target }}/${{ matrix.rust }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
-          override: true
+          targets: ${{ matrix.target }}
       - name: Install dependencies
         if: matrix.install_deps
         run: ${{ matrix.install_deps }}
@@ -104,14 +103,13 @@ jobs:
             experimental: false
             target: thumbv6m-none-eabi
 
+    name: nostd-build/${{ matrix.target }}/${{ matrix.rust }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
-          override: true
+          targets: ${{ matrix.target }}
       - name: Tests
         run: |
           cargo rustc "--target=${{ matrix.target }}" --manifest-path=ensure_no_std/Cargo.toml
@@ -128,14 +126,13 @@ jobs:
             target: aarch64-unknown-linux-gnu
             features: cgemm
 
+    name: cross_test/${{ matrix.target }}/${{ matrix.rust }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
           profile: minimal
-          toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
-          override: true
+          targets: ${{ matrix.target }}
       - name: Cache cargo plugins
         id: cache
         uses: actions/cache@v1
@@ -156,7 +153,7 @@ jobs:
     name: cargo-careful
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
       - uses: Swatinem/rust-cache@v2
@@ -167,7 +164,7 @@ jobs:
   miri:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Miri
         run: ci/miri.sh --features cgemm
 

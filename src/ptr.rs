@@ -6,8 +6,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![allow(unknown_lints, suspicious_auto_trait_impls)]
-
 use rawpointer::PointerExt;
 
 /// A Send + Sync raw pointer wrapper

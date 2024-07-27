@@ -51,6 +51,13 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.9
+
+  - Fix debug assertion for alignment on s390x, involving alignment of the mask buffer;
+    the change lowered the static alignment request to (16) in thread local storage
+    on all platforms (except macos was unchanged).
+  - Test with cargo-careful
+
 - 0.3.8
 
   - Lower alignment requirement for thread local storage value on macos, since

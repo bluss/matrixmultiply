@@ -10,6 +10,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   MATMUL_NUM_THREADS: 4
+  RUST_BACKTRACE: full
 
 jobs:
   tests:
@@ -120,6 +121,9 @@ jobs:
       matrix:
         include:
           - rust: stable
+            target: s390x-unknown-linux-gnu
+            features: constconf cgemm threading
+          - rust: stable
             target: aarch64-unknown-linux-gnu
             features: constconf cgemm threading
           - rust: 1.65.0
@@ -146,7 +150,11 @@ jobs:
         run: cross test --target "${{ matrix.target }}" --features "${{ matrix.features }}"
         env:
           MMTEST_FAST_TEST: 1
-          RUSTFLAGS: -Copt-level=2
+      - name: Tests (Release)
+        run: cross test --release --target "${{ matrix.target }}" --features "${{ matrix.features }}"
+        env:
+          MMTEST_FAST_TEST: 1
+
 
   cargo-careful:
     runs-on: ubuntu-latest

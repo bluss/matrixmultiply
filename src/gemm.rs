@@ -345,7 +345,19 @@ const MASK_BUF_SIZE: usize = KERNEL_MAX_SIZE + KERNEL_MAX_ALIGN - 1;
 // we don't get aligned allocations out of TLS - 16- and 8-byte
 // allocations have been seen, make the minimal align request we can.
 // Align(32) would not work with TLS for s390x.
-#[cfg_attr(not(target_os = "macos"), repr(align(16)))]
+#[cfg_attr(
+    not(any(
+        target_os = "macos",
+        // Target i686-win7-windows-msvc <https://github.com/rust-lang/rust/issues/138903>
+        all(
+            target_arch = "x86",
+            target_vendor = "win7",
+            target_os = "windows",
+            target_env = "msvc"
+        )
+    )),
+    repr(align(16))
+)]
 struct MaskBuffer {
     buffer: [u8; MASK_BUF_SIZE],
 }

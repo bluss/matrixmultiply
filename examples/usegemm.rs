@@ -21,7 +21,6 @@ use core::fmt::{Display, Debug};
 
 trait Float : Copy + Display + Debug + PartialEq {
     fn zero() -> Self;
-    fn one() -> Self;
     fn from(x: i64) -> Self;
     fn nan() -> Self;
     fn is_nan(self) -> bool;
@@ -29,7 +28,6 @@ trait Float : Copy + Display + Debug + PartialEq {
 
 impl Float for f32 {
     fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
     fn from(x: i64) -> Self { x as Self }
     fn nan() -> Self { 0./0. }
     fn is_nan(self) -> bool { self.is_nan() }
@@ -37,7 +35,6 @@ impl Float for f32 {
 
 impl Float for f64 {
     fn zero() -> Self { 0. }
-    fn one() -> Self { 1. }
     fn from(x: i64) -> Self { x as Self }
     fn nan() -> Self { 0./0. }
     fn is_nan(self) -> bool { self.is_nan() }

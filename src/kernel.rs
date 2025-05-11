@@ -94,6 +94,7 @@ pub(crate) trait GemmKernel {
 pub(crate) trait Element : Copy + Send + Sync {
     fn zero() -> Self;
     fn one() -> Self;
+    #[cfg_attr(not(test), allow(unused))]
     fn test_value() -> Self;
     fn is_zero(&self) -> bool;
     fn add_assign(&mut self, rhs: Self);

@@ -138,11 +138,7 @@ jobs:
           profile: minimal
           targets: ${{ matrix.target }}
       - name: Cache cargo plugins
-        id: cache
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/bin/
-          key: ${{ runner.os }}-cargo-plugins
+        uses: Swatinem/rust-cache@v2
       - name: Install cross
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo install cross

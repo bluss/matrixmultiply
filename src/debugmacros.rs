@@ -13,14 +13,14 @@ macro_rules! dprint {
     }
 }
 
-#[cfg(feature = "use_debug")]
+/*
 macro_rules! debug {
     ($e:expr) => {
         $e;
     }
 }
+*/
 
-#[cfg(not(feature = "use_debug"))]
 macro_rules! debug {
     ($e:expr) => {
     }

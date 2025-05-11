@@ -67,6 +67,10 @@ jobs:
       - name: Install dependencies
         if: matrix.install_deps
         run: ${{ matrix.install_deps }}
+      - name: Cargo deps locks
+        if: ${{ matrix.rust == '1.41.1' }}
+        run:
+          cargo update -p either --precise 1.13.0
       - name: Tests
         run: |
           rustc -C target-cpu=native --print cfg

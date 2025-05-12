@@ -51,6 +51,12 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- 0.3.10
+
+  - sgemm: Reduce unnecessary AVX register permutations by `@SongXiaoXi <https://github.com/SongXiaoXi>`_ `#88 <https://github.com/bluss/matrixmultiply/pull/88>`_
+  - Exclude alignment for MaskBuffer for i686-win7-windows-msvc by `@drewkett <https://github.com/drewkett>`_ `#87 <https://github.com/bluss/matrixmultiply/pull/87>`_
+  - Fix cross builder CI and fix a few warnings by `@bluss <https://github.com/bluss>`_ `#89 <https://github.com/bluss/matrixmultiply/pull/89>`_
+
 - 0.3.9
 
   - Fix debug assertion for alignment on s390x, involving alignment of the mask buffer;

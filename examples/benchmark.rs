@@ -6,9 +6,9 @@ extern crate matrixmultiply;
 
 use std::cell::Cell;
 use std::fmt::Debug;
+use std::iter::zip;
 use std::time::Instant;
 
-use itertools::zip;
 use itertools::Itertools;
 
 include!("../testdefs/testdefs.rs");

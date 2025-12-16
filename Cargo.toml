@@ -20,7 +20,7 @@ Supports multithreading."""
 keywords = ["matrix", "sgemm", "dgemm"]
 categories = ["science"]
 
-exclude = ["docs/*"]
+include = ["README.rst", "build.rs", "LICENSE-MIT", "LICENSE-APACHE", "src/**/*.rs", "Cargo.toml"]
 
 build = "build.rs"
 

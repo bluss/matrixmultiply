@@ -20,7 +20,7 @@ Supports multithreading."""
 keywords = ["matrix", "sgemm", "dgemm"]
 categories = ["science"]
 
-exclude = ["docs/*"]
+exclude = ["examples/*", "ci/*", ".github/*", "benches/*"]
 
 build = "build.rs"
 

@@ -156,6 +156,38 @@ jobs:
           MMTEST_FAST_TEST: 1
 
 
+  wasm_test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rust: stable
+            target: wasm32-wasip1
+            rustflags: ""
+            name: fallback
+          - rust: stable
+            target: wasm32-wasip1
+            rustflags: "-C target-feature=+simd128"
+            name: simd128
+
+    name: wasm_test/${{ matrix.target }}/${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: ${{ matrix.target }}
+      - name: Install wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+      - name: Tests
+        run: |
+          cargo test -v --tests --lib --release --no-fail-fast --target "${{ matrix.target }}"
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+          CARGO_TARGET_WASM32_WASIP1_RUNNER: "wasmtime --dir=."
+          MMTEST_FAST_TEST: 1
+
+
   cargo-careful:
     runs-on: ubuntu-latest
     name: cargo-careful

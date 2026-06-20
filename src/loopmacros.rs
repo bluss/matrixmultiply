@@ -66,6 +66,38 @@ macro_rules! loop8 {
     }}
 }
 
+// AVX-512 sgemm microkernel (16 kernel rows)
+#[allow(unused)]
+#[cfg(debug_assertions)]
+macro_rules! loop16 {
+    ($i:ident, $e:expr) => {
+        for $i in 0..16 { $e }
+    }
+}
+
+#[allow(unused)]
+#[cfg(not(debug_assertions))]
+macro_rules! loop16 {
+    ($i:ident, $e:expr) => {{
+        let $i = 0; $e;
+        let $i = 1; $e;
+        let $i = 2; $e;
+        let $i = 3; $e;
+        let $i = 4; $e;
+        let $i = 5; $e;
+        let $i = 6; $e;
+        let $i = 7; $e;
+        let $i = 8; $e;
+        let $i = 9; $e;
+        let $i = 10; $e;
+        let $i = 11; $e;
+        let $i = 12; $e;
+        let $i = 13; $e;
+        let $i = 14; $e;
+        let $i = 15; $e;
+    }}
+}
+
 #[cfg(debug_assertions)]
 macro_rules! unroll_by {
     ($by:tt => $ntimes:expr, $e:expr) => {

@@ -260,6 +260,22 @@ impl GemmKernel for KernelAvx512 {
     #[inline(always)]
     fn mc() -> usize { archparam::D_MC }
 
+    #[inline]
+    unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        // safety: any CPU with avx512f also has avx2
+        crate::packing::pack_avx2::<Self::MRTy, T>(kc, mc, pack, a, rsa, csa)
+    }
+
+    #[inline]
+    unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        // safety: any CPU with avx512f also has avx2
+        crate::packing::pack_avx2::<Self::NRTy, T>(kc, mc, pack, a, rsa, csa)
+    }
+
     #[inline(always)]
     unsafe fn kernel(
         k: usize,
@@ -921,10 +937,6 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
 }
 
 // no inline for unmasked kernels
-// 8x8 dgemm microkernel using a broadcast (rank-1 update) scheme (the f64
-// analogue of the sgemm AVX-512 kernel): each accumulator holds one 8-wide row
-// of C; per k step we load one row of packed B and FMA it against each
-// broadcast element of packed A.
 #[cfg(has_avx512)]
 #[target_feature(enable="avx512f")]
 unsafe fn kernel_target_avx512(k: usize, alpha: T, a: *const T, b: *const T,
@@ -952,37 +964,40 @@ unsafe fn kernel_target_avx512(k: usize, alpha: T, a: *const T, b: *const T,
         }
     });
 
-    // ab = alpha * (A B)
-    let alphav = _mm512_set1_pd(alpha);
-    loop8!(i, ab[i] = _mm512_mul_pd(alphav, ab[i]));
-
     macro_rules! c {
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
     }
 
-    // ab = ab + beta * C
+    // C <- alpha (A B) + beta C, in a single epilogue pass
+    // Fold alpha into the final FMA
+    // When beta == 0 the kernel must not read C
+    let alphav = _mm512_set1_pd(alpha);
     if beta != 0. {
         let betav = _mm512_set1_pd(beta);
         if csc == 1 {
-            loop8!(i, ab[i] = _mm512_fmadd_pd(_mm512_loadu_pd(c![i, 0]), betav, ab[i]));
+            loop8!(i, {
+                let cv = _mm512_mul_pd(_mm512_loadu_pd(c![i, 0]), betav);
+                _mm512_storeu_pd(c![i, 0], _mm512_fmadd_pd(alphav, ab[i], cv));
+            });
         } else {
             loop8!(i, {
                 let mut tmp = [0.; NR];
                 for j in 0..NR { tmp[j] = *c![i, j]; }
-                ab[i] = _mm512_fmadd_pd(_mm512_loadu_pd(tmp.as_ptr()), betav, ab[i]);
+                let cv = _mm512_mul_pd(_mm512_loadu_pd(tmp.as_ptr()), betav);
+                _mm512_storeu_pd(tmp.as_mut_ptr(), _mm512_fmadd_pd(alphav, ab[i], cv));
+                for j in 0..NR { *c![i, j] = tmp[j]; }
             });
         }
-    }
-
-    // Store C back to memory
-    if csc == 1 {
-        loop8!(i, _mm512_storeu_pd(c![i, 0], ab[i]));
     } else {
-        loop8!(i, {
-            let mut tmp = [0.; NR];
-            _mm512_storeu_pd(tmp.as_mut_ptr(), ab[i]);
-            for j in 0..NR { *c![i, j] = tmp[j]; }
-        });
+        if csc == 1 {
+            loop8!(i, _mm512_storeu_pd(c![i, 0], _mm512_mul_pd(alphav, ab[i])));
+        } else {
+            loop8!(i, {
+                let mut tmp = [0.; NR];
+                _mm512_storeu_pd(tmp.as_mut_ptr(), _mm512_mul_pd(alphav, ab[i]));
+                for j in 0..NR { *c![i, j] = tmp[j]; }
+            });
+        }
     }
 }
 

@@ -251,6 +251,22 @@ impl GemmKernel for KernelAvx512 {
     #[inline(always)]
     fn mc() -> usize { archparam::S_MC }
 
+    #[inline]
+    unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        // safety: any CPU with avx512f also has avx2
+        crate::packing::pack_avx2::<Self::MRTy, T>(kc, mc, pack, a, rsa, csa)
+    }
+
+    #[inline]
+    unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        // safety: any CPU with avx512f also has avx2
+        crate::packing::pack_avx2::<Self::NRTy, T>(kc, mc, pack, a, rsa, csa)
+    }
+
     #[inline(always)]
     unsafe fn kernel(
         k: usize,
@@ -606,37 +622,40 @@ unsafe fn kernel_target_avx512(k: usize, alpha: T, a: *const T, b: *const T,
         }
     });
 
-    // ab = alpha * (A B)
-    let alphav = _mm512_set1_ps(alpha);
-    loop16!(i, ab[i] = _mm512_mul_ps(alphav, ab[i]));
-
     macro_rules! c {
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
     }
 
-    // ab = ab + beta * C
+    // C <- alpha (A B) + beta C, in a single epilogue pass
+    // Fold alpha into the final FMA
+    // When beta == 0 the kernel must not read C
+    let alphav = _mm512_set1_ps(alpha);
     if beta != 0. {
         let betav = _mm512_set1_ps(beta);
         if csc == 1 {
-            loop16!(i, ab[i] = _mm512_fmadd_ps(_mm512_loadu_ps(c![i, 0]), betav, ab[i]));
+            loop16!(i, {
+                let cv = _mm512_mul_ps(_mm512_loadu_ps(c![i, 0]), betav);
+                _mm512_storeu_ps(c![i, 0], _mm512_fmadd_ps(alphav, ab[i], cv));
+            });
         } else {
             loop16!(i, {
                 let mut tmp = [0.; NR];
                 for j in 0..NR { tmp[j] = *c![i, j]; }
-                ab[i] = _mm512_fmadd_ps(_mm512_loadu_ps(tmp.as_ptr()), betav, ab[i]);
+                let cv = _mm512_mul_ps(_mm512_loadu_ps(tmp.as_ptr()), betav);
+                _mm512_storeu_ps(tmp.as_mut_ptr(), _mm512_fmadd_ps(alphav, ab[i], cv));
+                for j in 0..NR { *c![i, j] = tmp[j]; }
             });
         }
-    }
-
-    // Store C back to memory
-    if csc == 1 {
-        loop16!(i, _mm512_storeu_ps(c![i, 0], ab[i]));
     } else {
-        loop16!(i, {
-            let mut tmp = [0.; NR];
-            _mm512_storeu_ps(tmp.as_mut_ptr(), ab[i]);
-            for j in 0..NR { *c![i, j] = tmp[j]; }
-        });
+        if csc == 1 {
+            loop16!(i, _mm512_storeu_ps(c![i, 0], _mm512_mul_ps(alphav, ab[i])));
+        } else {
+            loop16!(i, {
+                let mut tmp = [0.; NR];
+                _mm512_storeu_ps(tmp.as_mut_ptr(), _mm512_mul_ps(alphav, ab[i]));
+                for j in 0..NR { *c![i, j] = tmp[j]; }
+            });
+        }
     }
 }
 

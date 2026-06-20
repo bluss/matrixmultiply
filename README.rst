@@ -51,6 +51,10 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
+- Unreleased
+
+  - Add AVX-512 microkernels for sgemm (16×16) and dgemm (8×8)
+
 - 0.3.10
 
   - sgemm: Reduce unnecessary AVX register permutations by `@SongXiaoXi <https://github.com/SongXiaoXi>`_ `#88 <https://github.com/bluss/matrixmultiply/pull/88>`_

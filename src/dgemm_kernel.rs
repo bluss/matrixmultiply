@@ -27,6 +27,8 @@ struct KernelFmaAvx2;
 struct KernelFma;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelSse2;
+#[cfg(has_avx512)]
+struct KernelAvx512;
 
 #[cfg(target_arch="aarch64")]
 #[cfg(has_aarch64_simd)]
@@ -46,6 +48,12 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     // dispatch to specific compiled versions
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
+        #[cfg(has_avx512)]
+        {
+            if is_x86_feature_detected_!("avx512f") {
+                return selector.select(KernelAvx512);
+            }
+        }
         if is_x86_feature_detected_!("fma") {
             if is_x86_feature_detected_!("avx2") {
                 return selector.select(KernelFmaAvx2);
@@ -229,6 +237,38 @@ impl GemmKernel for KernelSse2 {
         csc: isize)
     {
         kernel_target_sse2(k, alpha, a, b, beta, c, rsc, csc)
+    }
+}
+
+#[cfg(has_avx512)]
+impl GemmKernel for KernelAvx512 {
+    type Elem = T;
+
+    type MRTy = U8;
+    type NRTy = U8;
+
+    #[inline(always)]
+    fn align_to() -> usize { 32 }
+
+    #[inline(always)]
+    fn always_masked() -> bool { false }
+
+    #[inline(always)]
+    fn nc() -> usize { archparam::D_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::D_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::D_MC }
+
+    #[inline(always)]
+    unsafe fn kernel(
+        k: usize,
+        alpha: T,
+        a: *const T,
+        b: *const T,
+        beta: T,
+        c: *mut T, rsc: isize, csc: isize) {
+        kernel_target_avx512(k, alpha, a, b, beta, c, rsc, csc)
     }
 }
 
@@ -880,6 +920,72 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
     }
 }
 
+// no inline for unmasked kernels
+// 8x8 dgemm microkernel using a broadcast (rank-1 update) scheme (the f64
+// analogue of the sgemm AVX-512 kernel): each accumulator holds one 8-wide row
+// of C; per k step we load one row of packed B and FMA it against each
+// broadcast element of packed A.
+#[cfg(has_avx512)]
+#[target_feature(enable="avx512f")]
+unsafe fn kernel_target_avx512(k: usize, alpha: T, a: *const T, b: *const T,
+                               beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    const MR: usize = KernelAvx512::MR;
+    const NR: usize = KernelAvx512::NR;
+    debug_assert_ne!(k, 0);
+
+    let mut ab = [_mm512_setzero_pd(); MR];
+
+    // Compute C in whichever orientation makes the output columns contiguous.
+    let prefer_row_major_c = rsc != 1;
+    let (mut a, mut b) = if prefer_row_major_c { (a, b) } else { (b, a) };
+    let (rsc, csc) = if prefer_row_major_c { (rsc, csc) } else { (csc, rsc) };
+
+    // Compute A B. Load one 8-wide row of B, FMA against each broadcast A elem.
+    let mut bv = _mm512_loadu_pd(b);
+    unroll_by_with_last!(4 => k, is_last, {
+        loop8!(i, ab[i] = _mm512_fmadd_pd(_mm512_set1_pd(*a.add(i)), bv, ab[i]));
+        if !is_last {
+            a = a.add(MR);
+            b = b.add(NR);
+            bv = _mm512_loadu_pd(b);
+        }
+    });
+
+    // ab = alpha * (A B)
+    let alphav = _mm512_set1_pd(alpha);
+    loop8!(i, ab[i] = _mm512_mul_pd(alphav, ab[i]));
+
+    macro_rules! c {
+        ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
+    }
+
+    // ab = ab + beta * C
+    if beta != 0. {
+        let betav = _mm512_set1_pd(beta);
+        if csc == 1 {
+            loop8!(i, ab[i] = _mm512_fmadd_pd(_mm512_loadu_pd(c![i, 0]), betav, ab[i]));
+        } else {
+            loop8!(i, {
+                let mut tmp = [0.; NR];
+                for j in 0..NR { tmp[j] = *c![i, j]; }
+                ab[i] = _mm512_fmadd_pd(_mm512_loadu_pd(tmp.as_ptr()), betav, ab[i]);
+            });
+        }
+    }
+
+    // Store C back to memory
+    if csc == 1 {
+        loop8!(i, _mm512_storeu_pd(c![i, 0], ab[i]));
+    } else {
+        loop8!(i, {
+            let mut tmp = [0.; NR];
+            _mm512_storeu_pd(tmp.as_mut_ptr(), ab[i]);
+            for j in 0..NR { *c![i, j] = tmp[j]; }
+        });
+    }
+}
+
 #[cfg(target_arch="aarch64")]
 #[cfg(has_aarch64_simd)]
 #[target_feature(enable="neon")]
@@ -1120,6 +1226,17 @@ mod tests {
             "fma", fma, KernelFma,
             "avx", avx, KernelAvx,
             "sse2", sse2, KernelSse2
+        }
+
+        #[cfg(has_avx512)]
+        #[test]
+        fn avx512f() {
+            if is_x86_feature_detected_!("avx512f") {
+                test_a_kernel::<KernelAvx512, _>("avx512f");
+            } else {
+                #[cfg(feature = "std")]
+                println!("Skipping, host does not have feature: {:?}", "avx512f");
+            }
         }
     }
 }

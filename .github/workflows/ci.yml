@@ -211,12 +211,18 @@ jobs:
   # run the test suite under Intel SDE to ensure AVX-512 kernels are available
   avx512_test:
     runs-on: ubuntu-latest
-    name: avx512_test/sde
+    strategy:
+      matrix:
+        include:
+          - rust: stable
+            target: x86_64-unknown-linux-gnu
+    name: avx512_test/${{ matrix.target }}/${{ matrix.rust }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
+          targets: ${{ matrix.target }}
       - name: Set up Intel SDE
         # Sets SDE_PATH to the directory containing the SDE binaries
         uses: petarpetrovt/setup-sde@v5.0

@@ -219,7 +219,7 @@ jobs:
           toolchain: stable
       - name: Set up Intel SDE
         # Sets SDE_PATH to the directory containing the SDE binaries
-        uses: petarpetrovt/setup-sde@v2.4
+        uses: petarpetrovt/setup-sde@v5.0
       - name: Tests under SDE (force + ensure avx512f)
         run: |
           export PATH="$SDE_PATH:$PATH"

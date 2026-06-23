@@ -58,8 +58,7 @@
 //!   - `fma`
 //!   - `avx`
 //!   - `sse2`
-//!   - `avx512` (the AVX-512 kernels require Rust 1.89 or later; on older
-//!     compilers the crate transparently falls back to the `fma`/`avx` kernels)
+//!   - `avx512` (Rust 1.89 or later)
 //!
 //! - *aarch64* features can be detected at runtime by default or compile time
 //!   (if enabled), and the following kernel variants are implemented:

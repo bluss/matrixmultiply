@@ -229,7 +229,7 @@ jobs:
       - name: Tests under SDE (force + ensure avx512f)
         run: |
           export PATH="$SDE_PATH:$PATH"
-          cargo test -v --tests --lib --release --no-fail-fast
+          cargo test -v --tests --lib --release --no-fail-fast --features cgemm
         env:
           # Emulate a CPU with avx512f
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sde64 -spr --"

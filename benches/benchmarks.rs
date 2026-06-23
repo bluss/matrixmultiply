@@ -1,14 +1,23 @@
 extern crate matrixmultiply;
 pub use matrixmultiply::dgemm;
 pub use matrixmultiply::sgemm;
+#[cfg(feature = "cgemm")]
+pub use matrixmultiply::{cgemm, zgemm, CGemmOption};
 
 #[macro_use]
 extern crate bencher;
 
 // Compute GFlop/s
-// by flop / s = 2 M N K / time
+// by flop / s = 2 M N K / time   (8 M N K for the complex kernels)
+// To benchmark a specific kernel, pin it at compile time with MMTEST_FEATURE
+// E.g. `MMTEST_FEATURE=avx512f cargo bench --features cgemm`
+// Use `MMTEST_FEATURE=fma` for a 256-bit (AVX2-class) baseline (do not use `MMTEST_FEATURE=avx2`)
 
+#[cfg(not(feature = "cgemm"))]
 benchmark_main!(mat_mul_f32, mat_mul_f64, layout_f32_032, layout_f64_032);
+#[cfg(feature = "cgemm")]
+benchmark_main!(mat_mul_f32, mat_mul_f64, layout_f32_032, layout_f64_032,
+                mat_mul_c32, mat_mul_c64);
 
 macro_rules! mat_mul {
     ($modname:ident, $gemm:ident, $(($name:ident, $m:expr, $n:expr, $k:expr))+) => {
@@ -75,6 +84,71 @@ mat_mul! {mat_mul_f64, dgemm,
     (mix32x2, 32, 2, 32)
     (mix97, 97, 97, 125)
     (mix128x10000x128, 128, 10000, 128)
+    */
+}
+
+// Complex size-sweep, sibling of `mat_mul!`
+#[cfg(feature = "cgemm")]
+macro_rules! cmat_mul {
+    ($modname:ident, $gemm:ident, $real:ty, $(($name:ident, $m:expr, $n:expr, $k:expr))+) => {
+        mod $modname {
+            use bencher::Bencher;
+            use crate::{$gemm, CGemmOption};
+            $(
+            pub fn $name(bench: &mut Bencher)
+            {
+                let a = vec![[0. as $real; 2]; $m * $n];
+                let b = vec![[0. as $real; 2]; $n * $k];
+                let mut c = vec![[0. as $real; 2]; $m * $k];
+                bench.iter(|| {
+                    unsafe {
+                        $gemm(
+                            CGemmOption::Standard, CGemmOption::Standard,
+                            $m, $n, $k,
+                            [1. as $real, 0. as $real],
+                            a.as_ptr(), $n, 1,
+                            b.as_ptr(), $k, 1,
+                            [0. as $real, 0. as $real],
+                            c.as_mut_ptr(), $k, 1,
+                            )
+                    }
+                });
+            }
+            )+
+        }
+        benchmark_group!{ $modname, $($modname::$name),+ }
+    };
+}
+
+#[cfg(feature = "cgemm")]
+cmat_mul! {mat_mul_c32, cgemm, f32,
+    (m004, 4, 4, 4)
+    (m006, 6, 6, 6)
+    (m008, 8, 8, 8)
+    (m012, 12, 12, 12)
+    (m016, 16, 16, 16)
+    (m032, 32, 32, 32)
+    (m064, 64, 64, 64)
+    (m127, 127, 127, 127)
+    /*
+    (m256, 256, 256, 256)
+    (m512, 512, 512, 512)
+    */
+}
+
+#[cfg(feature = "cgemm")]
+cmat_mul! {mat_mul_c64, zgemm, f64,
+    (m004, 4, 4, 4)
+    (m006, 6, 6, 6)
+    (m008, 8, 8, 8)
+    (m012, 12, 12, 12)
+    (m016, 16, 16, 16)
+    (m032, 32, 32, 32)
+    (m064, 64, 64, 64)
+    (m127, 127, 127, 127)
+    /*
+    (m256, 256, 256, 256)
+    (m512, 512, 512, 512)
     */
 }
 

@@ -54,6 +54,7 @@ Recent Changes
 - Unreleased
 
   - Add AVX-512 microkernels for sgemm (16×16) and dgemm (8×8)
+  - Add AVX-512 microkernels for cgemm (8×4) and zgemm (4×4)
 
 - 0.3.10
 

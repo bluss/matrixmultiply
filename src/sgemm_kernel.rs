@@ -255,16 +255,16 @@ impl GemmKernel for KernelAvx512 {
     unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
-        // safety: any CPU with avx512f also has avx2
-        crate::packing::pack_avx2::<Self::MRTy, T>(kc, mc, pack, a, rsa, csa)
+        // safety: avx512f is enabled
+        crate::packing::pack_avx512::<Self::MRTy, T>(kc, mc, pack, a, rsa, csa)
     }
 
     #[inline]
     unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
-        // safety: any CPU with avx512f also has avx2
-        crate::packing::pack_avx2::<Self::NRTy, T>(kc, mc, pack, a, rsa, csa)
+        // safety: avx512f is enabled
+        crate::packing::pack_avx512::<Self::NRTy, T>(kc, mc, pack, a, rsa, csa)
     }
 
     #[inline(always)]

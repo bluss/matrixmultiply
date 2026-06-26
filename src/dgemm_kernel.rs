@@ -248,7 +248,7 @@ impl GemmKernel for KernelAvx512 {
     type NRTy = U8;
 
     #[inline(always)]
-    fn align_to() -> usize { 32 }
+    fn align_to() -> usize { 64 }
 
     #[inline(always)]
     fn always_masked() -> bool { false }
@@ -953,14 +953,14 @@ unsafe fn kernel_target_avx512(k: usize, alpha: T, a: *const T, b: *const T,
     let (mut a, mut b) = if prefer_row_major_c { (a, b) } else { (b, a) };
     let (rsc, csc) = if prefer_row_major_c { (rsc, csc) } else { (csc, rsc) };
 
-    // Compute A B. Load one 8-wide row of B, FMA against each broadcast A elem.
-    let mut bv = _mm512_loadu_pd(b);
+    // Compute A B. The packed buffers are 64-byte aligned
+    let mut bv = _mm512_load_pd(b);
     unroll_by_with_last!(4 => k, is_last, {
         loop8!(i, ab[i] = _mm512_fmadd_pd(_mm512_set1_pd(*a.add(i)), bv, ab[i]));
         if !is_last {
             a = a.add(MR);
             b = b.add(NR);
-            bv = _mm512_loadu_pd(b);
+            bv = _mm512_load_pd(b);
         }
     });
 

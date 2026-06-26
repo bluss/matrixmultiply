@@ -349,7 +349,11 @@ unsafe fn gemm_loop<K>(
 const KERNEL_MAX_SIZE: usize = 8 * 8 * 4;
 #[cfg(has_avx512)]
 const KERNEL_MAX_SIZE: usize = 16 * 16 * 4;
+#[cfg(not(has_avx512))]
 const KERNEL_MAX_ALIGN: usize = 32;
+// The AVX-512 kernels load a full 64-byte ZMM register
+#[cfg(has_avx512)]
+const KERNEL_MAX_ALIGN: usize = 64;
 const MASK_BUF_SIZE: usize = KERNEL_MAX_SIZE + KERNEL_MAX_ALIGN - 1;
 
 // Pointers into buffer will be manually aligned anyway, due to

@@ -5,7 +5,7 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-//! architechture specific parameters
+//! architecture specific parameters
 
 /// Columns in C, B that we handle at a time. (5th loop)
 ///

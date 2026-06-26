@@ -241,7 +241,6 @@ fn ensure_kernel_params<K>()
     let nr = K::NR;
     // These are current limitations,
     // can change if corresponding code in gemm_loop is updated.
-    // The bounds widen when AVX-512 is enabled (see KERNEL_MAX_* below).
     assert!(mr > 0 && mr <= KERNEL_MAX_MR);
     assert!(nr > 0 && nr <= KERNEL_MAX_NR);
     assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE);

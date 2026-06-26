@@ -1244,14 +1244,8 @@ mod tests {
         }
 
         #[cfg(has_avx512)]
-        #[test]
-        fn avx512f() {
-            if is_x86_feature_detected_!("avx512f") {
-                test_a_kernel::<KernelAvx512, _>("avx512f");
-            } else {
-                #[cfg(feature = "std")]
-                println!("Skipping, host does not have feature: {:?}", "avx512f");
-            }
+        test_arch_kernels_x86! {
+            "avx512f", avx512f, KernelAvx512
         }
     }
 }

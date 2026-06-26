@@ -66,7 +66,6 @@ macro_rules! loop8 {
     }}
 }
 
-// AVX-512 sgemm microkernel (16 kernel rows)
 #[allow(unused)]
 #[cfg(debug_assertions)]
 macro_rules! loop16 {

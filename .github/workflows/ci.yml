@@ -208,3 +208,31 @@ jobs:
       - name: Miri
         run: ci/miri.sh --features cgemm
 
+  # run the test suite under Intel SDE to ensure AVX-512 kernels are available
+  avx512_test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rust: stable
+            target: x86_64-unknown-linux-gnu
+    name: avx512_test/${{ matrix.target }}/${{ matrix.rust }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: ${{ matrix.target }}
+      - name: Set up Intel SDE
+        # Sets SDE_PATH to the directory containing the SDE binaries
+        uses: petarpetrovt/setup-sde@v5.0
+      - name: Tests under SDE (force + ensure avx512f)
+        run: |
+          export PATH="$SDE_PATH:$PATH"
+          cargo test -v --tests --lib --release --no-fail-fast --features cgemm
+        env:
+          # Emulate a CPU with avx512f
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sde64 -spr --"
+          MMTEST_FEATURE: avx512f
+          MMTEST_ENSUREFEATURE: 1
+          MMTEST_FAST_TEST: 1

@@ -46,6 +46,18 @@ pub(crate) unsafe fn pack_avx2<MR, T>(kc: usize, mc: usize, pack: &mut [T],
     pack_impl::<MR, T>(kc, mc, pack, a, rsa, csa)
 }
 
+/// Specialized for AVX-512
+/// Safety: Requires AVX-512F
+#[cfg(has_avx512)]
+#[target_feature(enable="avx512f")]
+pub(crate) unsafe fn pack_avx512<MR, T>(kc: usize, mc: usize, pack: &mut [T],
+                                        a: *const T, rsa: isize, csa: isize)
+    where T: Element,
+          MR: ConstNum,
+{
+    pack_impl::<MR, T>(kc, mc, pack, a, rsa, csa)
+}
+
 /// Pack implementation, see pack above for docs.
 ///
 /// Uses inline(always) so that it can be instantiated for different target features.

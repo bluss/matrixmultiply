@@ -219,6 +219,15 @@ impl<T> GemmSelect<T> for GemmParameters<T> {
     }
 }
 
+#[cfg(not(has_avx512))]
+const KERNEL_MAX_MR: usize = 8;
+#[cfg(not(has_avx512))]
+const KERNEL_MAX_NR: usize = 8;
+// Widen MR and NR when AVX-512 is enabled
+#[cfg(has_avx512)]
+const KERNEL_MAX_MR: usize = 16;
+#[cfg(has_avx512)]
+const KERNEL_MAX_NR: usize = 16;
 
 /// Ensure that GemmKernel parameters are supported
 /// (alignment, microkernel size).
@@ -232,10 +241,10 @@ fn ensure_kernel_params<K>()
     let nr = K::NR;
     // These are current limitations,
     // can change if corresponding code in gemm_loop is updated.
-    assert!(mr > 0 && mr <= 8);
-    assert!(nr > 0 && nr <= 8);
-    assert!(mr * nr * size_of::<K::Elem>() <= 8 * 4 * 8);
-    assert!(K::align_to() <= 32);
+    assert!(mr > 0 && mr <= KERNEL_MAX_MR);
+    assert!(nr > 0 && nr <= KERNEL_MAX_NR);
+    assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE);
+    assert!(K::align_to() <= KERNEL_MAX_ALIGN);
     // one row/col of the kernel is limiting the max align we can provide
     let max_align = size_of::<K::Elem>() * min(mr, nr);
     assert!(K::align_to() <= max_align);
@@ -336,8 +345,15 @@ unsafe fn gemm_loop<K>(
 }
 
 // set up buffer for masked (redirected output of) kernel
+#[cfg(not(has_avx512))]
 const KERNEL_MAX_SIZE: usize = 8 * 8 * 4;
+#[cfg(has_avx512)]
+const KERNEL_MAX_SIZE: usize = 16 * 16 * 4;
+#[cfg(not(has_avx512))]
 const KERNEL_MAX_ALIGN: usize = 32;
+// The AVX-512 kernels load a full 64-byte ZMM register
+#[cfg(has_avx512)]
+const KERNEL_MAX_ALIGN: usize = 64;
 const MASK_BUF_SIZE: usize = KERNEL_MAX_SIZE + KERNEL_MAX_ALIGN - 1;
 
 // Pointers into buffer will be manually aligned anyway, due to
@@ -488,7 +504,7 @@ unsafe fn align_ptr<T>(mut align_to: usize, mut ptr: *mut T) -> *mut T {
 }
 
 /// Call the GEMM kernel with a "masked" output C.
-/// 
+///
 /// Simply redirect the MR by NR kernel output to the passed
 /// in `mask_buf`, and copy the non masked region to the real
 /// C.

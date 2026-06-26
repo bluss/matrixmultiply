@@ -198,11 +198,15 @@ pub(crate) trait ConstNum {
 pub(crate) struct U2;
 pub(crate) struct U4;
 pub(crate) struct U8;
+#[cfg(has_avx512)]
+pub(crate) struct U16;
 
 #[cfg(feature = "cgemm")]
 impl ConstNum for U2 { const VALUE: usize = 2; }
 impl ConstNum for U4 { const VALUE: usize = 4; }
 impl ConstNum for U8 { const VALUE: usize = 8; }
+#[cfg(has_avx512)]
+impl ConstNum for U16 { const VALUE: usize = 16; }
 
 
 #[cfg(test)]

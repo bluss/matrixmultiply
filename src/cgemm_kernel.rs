@@ -9,9 +9,13 @@
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
 use crate::kernel::{U2, U4, c32, Element, c32_mul as mul};
+#[cfg(has_avx512)]
+use crate::kernel::U8;
 use crate::archparam;
 use crate::cgemm_common::pack_complex;
 
+#[cfg(has_avx512)]
+struct KernelAvx512;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelAvx2;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
@@ -36,6 +40,12 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     // dispatch to specific compiled versions
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
+        #[cfg(has_avx512)]
+        {
+            if is_x86_feature_detected_!("avx512f") {
+                return selector.select(KernelAvx512);
+            }
+        }
         if is_x86_feature_detected_!("fma") {
             if is_x86_feature_detected_!("avx2") {
                 return selector.select(KernelAvx2);
@@ -51,6 +61,40 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
         }
     }
     return selector.select(KernelFallback);
+}
+
+#[cfg(has_avx512)]
+impl GemmKernel for KernelAvx512 {
+    type Elem = T;
+
+    type MRTy = U8;
+    type NRTy = U4;
+
+    #[inline(always)]
+    fn align_to() -> usize { 32 }
+
+    #[inline(always)]
+    fn always_masked() -> bool { KernelFallback::always_masked() }
+
+    #[inline(always)]
+    fn nc() -> usize { archparam::C_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::C_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::C_MC }
+
+    pack_methods!{}
+
+    #[inline(always)]
+    unsafe fn kernel(
+        k: usize,
+        alpha: T,
+        a: *const T,
+        b: *const T,
+        beta: T,
+        c: *mut T, rsc: isize, csc: isize) {
+        kernel_target_avx512(k, alpha, a, b, beta, c, rsc, csc)
+    }
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
@@ -189,6 +233,19 @@ impl GemmKernel for KernelFallback {
     }
 }
 
+// Kernel AVX-512
+#[cfg(has_avx512)]
+macro_rules! loop_m { ($i:ident, $e:expr) => { loop8!($i, $e) }; }
+#[cfg(has_avx512)]
+macro_rules! loop_n { ($j:ident, $e:expr) => { loop4!($j, $e) }; }
+
+#[cfg(has_avx512)]
+kernel_fallback_impl_complex! {
+    // instantiate separately
+    [inline target_feature(enable="avx512f")] [fma_yes]
+    kernel_target_avx512, T, TReal, KernelAvx512::MR, KernelAvx512::NR, 4
+}
+
 // Kernel AVX2
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
@@ -310,6 +367,11 @@ mod tests {
         test_arch_kernels_x86! {
             "fma", fma, KernelFma,
             "avx2", avx2, KernelAvx2
+        }
+
+        #[cfg(has_avx512)]
+        test_arch_kernels_x86! {
+            "avx512f", avx512f, KernelAvx512
         }
     }
 }

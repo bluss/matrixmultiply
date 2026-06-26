@@ -9,6 +9,8 @@
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
 use crate::kernel::{U4, U8};
+#[cfg(has_avx512)]
+use crate::kernel::U16;
 use crate::archparam;
 
 #[cfg(target_arch="x86")]
@@ -26,6 +28,8 @@ struct KernelFmaAvx2;
 struct KernelFma;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelSse2;
+#[cfg(has_avx512)]
+struct KernelAvx512;
 
 #[cfg(target_arch="aarch64")]
 #[cfg(has_aarch64_simd)]
@@ -46,6 +50,12 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
     // dispatch to specific compiled versions
     #[cfg(any(target_arch="x86", target_arch="x86_64"))]
     {
+        #[cfg(has_avx512)]
+        {
+            if is_x86_feature_detected_!("avx512f") {
+                return selector.select(KernelAvx512);
+            }
+        }
         if is_x86_feature_detected_!("fma") {
             if is_x86_feature_detected_!("avx2") {
                 return selector.select(KernelFmaAvx2);
@@ -221,6 +231,53 @@ impl GemmKernel for KernelSse2 {
     }
 }
 
+#[cfg(has_avx512)]
+impl GemmKernel for KernelAvx512 {
+    type Elem = T;
+
+    type MRTy = U16;
+    type NRTy = U16;
+
+    #[inline(always)]
+    fn align_to() -> usize { 64 }
+
+    #[inline(always)]
+    fn always_masked() -> bool { false }
+
+    #[inline(always)]
+    fn nc() -> usize { archparam::S_NC }
+    #[inline(always)]
+    fn kc() -> usize { archparam::S_KC }
+    #[inline(always)]
+    fn mc() -> usize { archparam::S_MC }
+
+    #[inline]
+    unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        // safety: avx512f is enabled
+        crate::packing::pack_avx512::<Self::MRTy, T>(kc, mc, pack, a, rsa, csa)
+    }
+
+    #[inline]
+    unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+                      a: *const Self::Elem, rsa: isize, csa: isize)
+    {
+        // safety: avx512f is enabled
+        crate::packing::pack_avx512::<Self::NRTy, T>(kc, mc, pack, a, rsa, csa)
+    }
+
+    #[inline(always)]
+    unsafe fn kernel(
+        k: usize,
+        alpha: T,
+        a: *const T,
+        b: *const T,
+        beta: T,
+        c: *mut T, rsc: isize, csc: isize) {
+        kernel_target_avx512(k, alpha, a, b, beta, c, rsc, csc)
+    }
+}
 
 #[cfg(target_arch="aarch64")]
 #[cfg(has_aarch64_simd)]
@@ -534,6 +591,71 @@ unsafe fn kernel_x86_avx<MA>(k: usize, alpha: T, a: *const T, b: *const T,
             let cperm = _mm_permute_ps(cperm, permute_mask!(0, 3, 2, 1));
             _mm_store_ss(c![i, 7], cperm);
         });
+    }
+}
+
+// no inline for unmasked kernels
+#[cfg(has_avx512)]
+#[target_feature(enable="avx512f")]
+unsafe fn kernel_target_avx512(k: usize, alpha: T, a: *const T, b: *const T,
+                               beta: T, c: *mut T, rsc: isize, csc: isize)
+{
+    const MR: usize = KernelAvx512::MR;
+    const NR: usize = KernelAvx512::NR;
+    debug_assert_ne!(k, 0);
+
+    let mut ab = [_mm512_setzero_ps(); MR];
+
+    // Compute C in whichever orientation makes the output columns contiguous
+    let prefer_row_major_c = rsc != 1;
+    let (mut a, mut b) = if prefer_row_major_c { (a, b) } else { (b, a) };
+    let (rsc, csc) = if prefer_row_major_c { (rsc, csc) } else { (csc, rsc) };
+
+    // Compute A B. The packed buffers are 64-byte aligned
+    let mut bv = _mm512_load_ps(b);
+    unroll_by_with_last!(4 => k, is_last, {
+        loop16!(i, ab[i] = _mm512_fmadd_ps(_mm512_set1_ps(*a.add(i)), bv, ab[i]));
+        if !is_last {
+            a = a.add(MR);
+            b = b.add(NR);
+            bv = _mm512_load_ps(b);
+        }
+    });
+
+    macro_rules! c {
+        ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
+    }
+
+    // C <- alpha (A B) + beta C, in a single epilogue pass
+    // Fold alpha into the final FMA
+    // When beta == 0 the kernel must not read C
+    let alphav = _mm512_set1_ps(alpha);
+    if beta != 0. {
+        let betav = _mm512_set1_ps(beta);
+        if csc == 1 {
+            loop16!(i, {
+                let cv = _mm512_mul_ps(_mm512_loadu_ps(c![i, 0]), betav);
+                _mm512_storeu_ps(c![i, 0], _mm512_fmadd_ps(alphav, ab[i], cv));
+            });
+        } else {
+            loop16!(i, {
+                let mut tmp = [0.; NR];
+                for j in 0..NR { tmp[j] = *c![i, j]; }
+                let cv = _mm512_mul_ps(_mm512_loadu_ps(tmp.as_ptr()), betav);
+                _mm512_storeu_ps(tmp.as_mut_ptr(), _mm512_fmadd_ps(alphav, ab[i], cv));
+                for j in 0..NR { *c![i, j] = tmp[j]; }
+            });
+        }
+    } else {
+        if csc == 1 {
+            loop16!(i, _mm512_storeu_ps(c![i, 0], _mm512_mul_ps(alphav, ab[i])));
+        } else {
+            loop16!(i, {
+                let mut tmp = [0.; NR];
+                _mm512_storeu_ps(tmp.as_mut_ptr(), _mm512_mul_ps(alphav, ab[i]));
+                for j in 0..NR { *c![i, j] = tmp[j]; }
+            });
+        }
     }
 }
 
@@ -920,6 +1042,11 @@ mod tests {
             "sse2", sse2, KernelSse2
         }
 
+        #[cfg(has_avx512)]
+        test_arch_kernels_x86! {
+            "avx512f", avx512f, KernelAvx512
+        }
+
         #[test]
         fn ensure_target_features_tested() {
             // If enabled, this test ensures that the requested feature actually
@@ -936,6 +1063,7 @@ mod tests {
                 "avx" => is_x86_feature_detected_!("avx"),
                 "fma" => is_x86_feature_detected_!("fma"),
                 "sse2" => is_x86_feature_detected_!("sse2"),
+                "avx512f" => is_x86_feature_detected_!("avx512f"),
                 _ => false,
             };
             assert!(detected, "Feature {:?} was not detected, so it could not be tested",

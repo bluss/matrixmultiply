@@ -714,20 +714,26 @@ unsafe fn kernel_target_wasm_simd(k: usize, alpha: T, a: *const T, b: *const T,
         }
     }
 
-    for _ in 0..k {
-        let a1 = v128_load(a as *const v128);
-        let b1 = v128_load(b as *const v128);
-        let a2 = v128_load(a.add(4) as *const v128);
-        let b2 = v128_load(b.add(4) as *const v128);
+    let mut a1 = v128_load(a as *const v128);
+    let mut b1 = v128_load(b as *const v128);
+    let mut a2 = v128_load(a.add(4) as *const v128);
+    let mut b2 = v128_load(b.add(4) as *const v128);
 
+    unroll_by_with_last!(2 => k, is_last, {
         ab_ij_equals_ai_bj!(ab11, a1, b1);
         ab_ij_equals_ai_bj!(ab12, a1, b2);
         ab_ij_equals_ai_bj!(ab21, a2, b1);
         ab_ij_equals_ai_bj!(ab22, a2, b2);
 
-        a = a.add(MR);
-        b = b.add(NR);
-    }
+        if !is_last {
+            a = a.add(MR);
+            b = b.add(NR);
+            a1 = v128_load(a as *const v128);
+            b1 = v128_load(b as *const v128);
+            a2 = v128_load(a.add(4) as *const v128);
+            b2 = v128_load(b.add(4) as *const v128);
+        }
+    });
 
     macro_rules! c {
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));

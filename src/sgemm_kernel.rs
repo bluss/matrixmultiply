@@ -705,13 +705,12 @@ unsafe fn kernel_target_wasm_simd(k: usize, alpha: T, a: *const T, b: *const T,
     let mut ab22 = [zero; 4];
 
     // ab_ij = a_i * b_j for all i, j
-    // (wasm SIMD has no lane-FMA; extract+splat into mul+add)
     macro_rules! ab_ij_equals_ai_bj {
         ($dest:ident, $av:expr, $bv:expr) => {
-            $dest[0] = f32x4_add($dest[0], f32x4_mul($bv, f32x4_splat(f32x4_extract_lane::<0>($av))));
-            $dest[1] = f32x4_add($dest[1], f32x4_mul($bv, f32x4_splat(f32x4_extract_lane::<1>($av))));
-            $dest[2] = f32x4_add($dest[2], f32x4_mul($bv, f32x4_splat(f32x4_extract_lane::<2>($av))));
-            $dest[3] = f32x4_add($dest[3], f32x4_mul($bv, f32x4_splat(f32x4_extract_lane::<3>($av))));
+            $dest[0] = muladd($bv, f32x4_splat(f32x4_extract_lane::<0>($av)), $dest[0]);
+            $dest[1] = muladd($bv, f32x4_splat(f32x4_extract_lane::<1>($av)), $dest[1]);
+            $dest[2] = muladd($bv, f32x4_splat(f32x4_extract_lane::<2>($av)), $dest[2]);
+            $dest[3] = muladd($bv, f32x4_splat(f32x4_extract_lane::<3>($av)), $dest[3]);
         }
     }
 

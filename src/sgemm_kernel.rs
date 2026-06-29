@@ -680,6 +680,20 @@ unsafe fn kernel_target_wasm_simd(k: usize, alpha: T, a: *const T, b: *const T,
     const MR: usize = KernelWasmSimd::MR;
     const NR: usize = KernelWasmSimd::NR;
 
+    // Use f32x4_relaxed_madd when enabled
+    // by spec relaxed_madd is a fused multiply-add when possible, otherwise it is a multiply then add
+    #[cfg(target_feature = "relaxed-simd")]
+    #[inline(always)]
+    unsafe fn muladd(a: v128, b: v128, c: v128) -> v128 {
+        f32x4_relaxed_madd(a, b, c)
+    }
+
+    #[cfg(not(target_feature = "relaxed-simd"))]
+    #[inline(always)]
+    unsafe fn muladd(a: v128, b: v128, c: v128) -> v128 {
+        f32x4_add(f32x4_mul(a, b), c)
+    }
+
     let (mut a, mut b, rsc, csc) = if rsc == 1 { (b, a, csc, rsc) } else { (a, b, rsc, csc) };
 
     // Kernel 8 x 8 (a x b)
@@ -691,30 +705,35 @@ unsafe fn kernel_target_wasm_simd(k: usize, alpha: T, a: *const T, b: *const T,
     let mut ab22 = [zero; 4];
 
     // ab_ij = a_i * b_j for all i, j
-    // (wasm SIMD has no lane-FMA; extract+splat into mul+add)
     macro_rules! ab_ij_equals_ai_bj {
         ($dest:ident, $av:expr, $bv:expr) => {
-            $dest[0] = f32x4_add($dest[0], f32x4_mul($bv, f32x4_splat(f32x4_extract_lane::<0>($av))));
-            $dest[1] = f32x4_add($dest[1], f32x4_mul($bv, f32x4_splat(f32x4_extract_lane::<1>($av))));
-            $dest[2] = f32x4_add($dest[2], f32x4_mul($bv, f32x4_splat(f32x4_extract_lane::<2>($av))));
-            $dest[3] = f32x4_add($dest[3], f32x4_mul($bv, f32x4_splat(f32x4_extract_lane::<3>($av))));
+            $dest[0] = muladd($bv, f32x4_splat(f32x4_extract_lane::<0>($av)), $dest[0]);
+            $dest[1] = muladd($bv, f32x4_splat(f32x4_extract_lane::<1>($av)), $dest[1]);
+            $dest[2] = muladd($bv, f32x4_splat(f32x4_extract_lane::<2>($av)), $dest[2]);
+            $dest[3] = muladd($bv, f32x4_splat(f32x4_extract_lane::<3>($av)), $dest[3]);
         }
     }
 
-    for _ in 0..k {
-        let a1 = v128_load(a as *const v128);
-        let b1 = v128_load(b as *const v128);
-        let a2 = v128_load(a.add(4) as *const v128);
-        let b2 = v128_load(b.add(4) as *const v128);
+    let mut a1 = v128_load(a as *const v128);
+    let mut b1 = v128_load(b as *const v128);
+    let mut a2 = v128_load(a.add(4) as *const v128);
+    let mut b2 = v128_load(b.add(4) as *const v128);
 
+    unroll_by_with_last!(2 => k, is_last, {
         ab_ij_equals_ai_bj!(ab11, a1, b1);
         ab_ij_equals_ai_bj!(ab12, a1, b2);
         ab_ij_equals_ai_bj!(ab21, a2, b1);
         ab_ij_equals_ai_bj!(ab22, a2, b2);
 
-        a = a.add(MR);
-        b = b.add(NR);
-    }
+        if !is_last {
+            a = a.add(MR);
+            b = b.add(NR);
+            a1 = v128_load(a as *const v128);
+            b1 = v128_load(b as *const v128);
+            a2 = v128_load(a.add(4) as *const v128);
+            b2 = v128_load(b.add(4) as *const v128);
+        }
+    });
 
     macro_rules! c {
         ($i:expr, $j:expr) => (c.offset(rsc * $i as isize + csc * $j as isize));
@@ -760,10 +779,10 @@ unsafe fn kernel_target_wasm_simd(k: usize, alpha: T, a: *const T, b: *const T,
 
         let betav = f32x4_splat(beta);
         // ab += β C
-        loop4!(i, ab11[i] = f32x4_add(ab11[i], f32x4_mul(c11[i], betav)));
-        loop4!(i, ab12[i] = f32x4_add(ab12[i], f32x4_mul(c12[i], betav)));
-        loop4!(i, ab21[i] = f32x4_add(ab21[i], f32x4_mul(c21[i], betav)));
-        loop4!(i, ab22[i] = f32x4_add(ab22[i], f32x4_mul(c22[i], betav)));
+        loop4!(i, ab11[i] = muladd(betav, c11[i], ab11[i]));
+        loop4!(i, ab12[i] = muladd(betav, c12[i], ab12[i]));
+        loop4!(i, ab21[i] = muladd(betav, c21[i], ab21[i]));
+        loop4!(i, ab22[i] = muladd(betav, c22[i], ab22[i]));
     }
 
     // c <- ab

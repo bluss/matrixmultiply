@@ -774,10 +774,10 @@ unsafe fn kernel_target_wasm_simd(k: usize, alpha: T, a: *const T, b: *const T,
 
         let betav = f32x4_splat(beta);
         // ab += β C
-        loop4!(i, ab11[i] = f32x4_add(ab11[i], f32x4_mul(c11[i], betav)));
-        loop4!(i, ab12[i] = f32x4_add(ab12[i], f32x4_mul(c12[i], betav)));
-        loop4!(i, ab21[i] = f32x4_add(ab21[i], f32x4_mul(c21[i], betav)));
-        loop4!(i, ab22[i] = f32x4_add(ab22[i], f32x4_mul(c22[i], betav)));
+        loop4!(i, ab11[i] = muladd(betav, c11[i], ab11[i]));
+        loop4!(i, ab12[i] = muladd(betav, c12[i], ab12[i]));
+        loop4!(i, ab21[i] = muladd(betav, c21[i], ab21[i]));
+        loop4!(i, ab22[i] = muladd(betav, c22[i], ab22[i]));
     }
 
     // c <- ab

@@ -8,10 +8,42 @@
 
 use rawpointer::PointerExt;
 
+use core::mem::MaybeUninit;
 use core::ptr::copy_nonoverlapping;
 
 use crate::kernel::ConstNum;
 use crate::kernel::Element;
+
+/// An internal wrapper around a valid mutable pointer to uninitialized memory
+#[repr(transparent)]
+pub(crate) struct PackSlice<'a, T>(&'a mut [MaybeUninit<T>]);
+
+impl<'a, T> PackSlice<'a, T> {
+    #[inline(always)]
+    pub(crate) fn as_mut_ptr(self) -> *mut T {
+        self.0.as_mut_ptr().cast::<T>()
+    }
+
+    /// Create a slice that points to uninitialized memory
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the pointer is non-null and valid for &mut access to the whole
+    /// slice. And the slice is not used past the memory's lifetime (should be used as temporary only).
+    #[inline]
+    pub(crate) unsafe fn from<'b>(ptr: *mut T, size: usize) -> PackSlice<'b, T> {
+        PackSlice(core::slice::from_raw_parts_mut(ptr.cast::<MaybeUninit<T>>(), size))
+    }
+
+    #[cfg(all(test, feature = "cgemm"))]
+    #[inline]
+    pub(crate) fn from_slice(slice: &'_ mut [T]) -> PackSlice<'_, T> {
+        // SAFETY: follows from mutable slice invariants
+        unsafe {
+            PackSlice::from(slice.as_mut_ptr(), slice.len())
+        }
+    }
+}
 
 /// Pack matrix into `pack`
 ///
@@ -26,7 +58,7 @@ use crate::kernel::Element;
 // If one of pack and a is of a reference type, it gets a noalias annotation which
 // gives benefits to optimization. The packing buffer is contiguous so it can be passed as a slice
 // here.
-pub(crate) unsafe fn pack<MR, T>(kc: usize, mc: usize, pack: &mut [T],
+pub(crate) unsafe fn pack<MR, T>(kc: usize, mc: usize, pack: PackSlice<T>,
                                  a: *const T, rsa: isize, csa: isize)
     where T: Element,
           MR: ConstNum,
@@ -38,7 +70,7 @@ pub(crate) unsafe fn pack<MR, T>(kc: usize, mc: usize, pack: &mut [T],
 /// Safety: Requires AVX2
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 #[target_feature(enable="avx2")]
-pub(crate) unsafe fn pack_avx2<MR, T>(kc: usize, mc: usize, pack: &mut [T],
+pub(crate) unsafe fn pack_avx2<MR, T>(kc: usize, mc: usize, pack: PackSlice<T>,
                                      a: *const T, rsa: isize, csa: isize)
     where T: Element,
           MR: ConstNum,
@@ -50,7 +82,7 @@ pub(crate) unsafe fn pack_avx2<MR, T>(kc: usize, mc: usize, pack: &mut [T],
 ///
 /// Uses inline(always) so that it can be instantiated for different target features.
 #[inline(always)]
-unsafe fn pack_impl<MR, T>(kc: usize, mc: usize, pack: &mut [T],
+unsafe fn pack_impl<MR, T>(kc: usize, mc: usize, pack: PackSlice<T>,
                            a: *const T, rsa: isize, csa: isize)
     where T: Element,
           MR: ConstNum,

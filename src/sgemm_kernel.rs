@@ -10,6 +10,7 @@ use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
 use crate::kernel::{U4, U8};
 use crate::archparam;
+use crate::packing::PackSlice;
 
 #[cfg(target_arch="x86")]
 use core::arch::x86::*;
@@ -162,7 +163,7 @@ impl GemmKernel for KernelFmaAvx2 {
     fn mc() -> usize { archparam::S_MC }
 
     #[inline]
-    unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+    unsafe fn pack_mr(kc: usize, mc: usize, pack: PackSlice<Self::Elem>,
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
         // safety: Avx2 is enabled
@@ -170,7 +171,7 @@ impl GemmKernel for KernelFmaAvx2 {
     }
 
     #[inline]
-    unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+    unsafe fn pack_nr(kc: usize, mc: usize, pack: PackSlice<Self::Elem>,
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
         // safety: Avx2 is enabled

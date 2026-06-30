@@ -19,6 +19,9 @@ use core::arch::x86_64::*;
 use crate::x86::{FusedMulAdd, AvxMulAdd, SMultiplyAdd};
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
+use crate::packing::PackSlice;
+
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelAvx;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFmaAvx2;
@@ -162,7 +165,7 @@ impl GemmKernel for KernelFmaAvx2 {
     fn mc() -> usize { archparam::S_MC }
 
     #[inline]
-    unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+    unsafe fn pack_mr(kc: usize, mc: usize, pack: PackSlice<Self::Elem>,
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
         // safety: Avx2 is enabled
@@ -170,7 +173,7 @@ impl GemmKernel for KernelFmaAvx2 {
     }
 
     #[inline]
-    unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+    unsafe fn pack_nr(kc: usize, mc: usize, pack: PackSlice<Self::Elem>,
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
         // safety: Avx2 is enabled

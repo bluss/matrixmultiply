@@ -8,6 +8,7 @@
 
 use crate::archparam;
 use crate::packing::pack;
+use crate::packing::PackSlice;
 
 /// General matrix multiply kernel
 pub(crate) trait GemmKernel {
@@ -43,7 +44,7 @@ pub(crate) trait GemmKernel {
     /// Override only if the default packing function does not
     /// use the right layout.
     #[inline]
-    unsafe fn pack_mr(kc: usize, mc: usize, pack_buf: &mut [Self::Elem],
+    unsafe fn pack_mr(kc: usize, mc: usize, pack_buf: PackSlice<Self::Elem>,
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
         pack::<Self::MRTy, _>(kc, mc, pack_buf, a, rsa, csa)
@@ -56,7 +57,7 @@ pub(crate) trait GemmKernel {
     /// Override only if the default packing function does not
     /// use the right layout.
     #[inline]
-    unsafe fn pack_nr(kc: usize, mc: usize, pack_buf: &mut [Self::Elem],
+    unsafe fn pack_nr(kc: usize, mc: usize, pack_buf: PackSlice<Self::Elem>,
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
         pack::<Self::NRTy, _>(kc, mc, pack_buf, a, rsa, csa)
@@ -304,6 +305,7 @@ pub(crate) mod test {
         TReal: Element + fmt::Debug + PartialEq,
     {
         use crate::cgemm_common::pack_complex;
+        use crate::packing::PackSlice;
 
         const K: usize = 16;
         let mr = K::MR;
@@ -333,8 +335,8 @@ pub(crate) mod test {
 
         // unlike test_a_kernel, we need custom packing for these kernels
         unsafe {
-            pack_complex::<K::MRTy, T, TReal>(K, mr, &mut apack[..], a.ptr_mut(), 1, mr as isize);
-            pack_complex::<K::NRTy, T, TReal>(nr, K, &mut bpack[..], b.ptr_mut(), nr as isize, 1);
+            pack_complex::<K::MRTy, T, TReal>(K, mr, PackSlice::from_slice(&mut *apack), a.ptr_mut(), 1, mr as isize);
+            pack_complex::<K::NRTy, T, TReal>(nr, K, PackSlice::from_slice(&mut *bpack), b.ptr_mut(), nr as isize, 1);
         }
 
         let mut c = vec![T::zero(); mr * nr];

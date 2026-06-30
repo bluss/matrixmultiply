@@ -13,6 +13,7 @@ use rawpointer::PointerExt;
 
 use crate::kernel::Element;
 use crate::kernel::ConstNum;
+use crate::packing::PackSlice;
 
 #[cfg(feature = "std")]
 macro_rules! fmuladd {
@@ -108,14 +109,14 @@ macro_rules! kernel_fallback_impl_complex {
 macro_rules! pack_methods {
     () => {
         #[inline]
-        unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+        unsafe fn pack_mr(kc: usize, mc: usize, pack: PackSlice<Self::Elem>,
                           a: *const Self::Elem, rsa: isize, csa: isize)
         {
             pack_complex::<Self::MRTy, T, TReal>(kc, mc, pack, a, rsa, csa)
         }
 
         #[inline]
-        unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+        unsafe fn pack_nr(kc: usize, mc: usize, pack: PackSlice<Self::Elem>,
                         a: *const Self::Elem, rsa: isize, csa: isize)
         {
             pack_complex::<Self::NRTy, T, TReal>(kc, mc, pack, a, rsa, csa)
@@ -137,14 +138,14 @@ macro_rules! pack_methods {
 ///   qy q_ q_ q_ .. (y = 2 * MR)
 ///   ...
 /// ]
-pub(crate) unsafe fn pack_complex<MR, T, TReal>(kc: usize, mc: usize, pack: &mut [T],
+pub(crate) unsafe fn pack_complex<MR, T, TReal>(kc: usize, mc: usize, pack: PackSlice<T>,
                                                 a: *const T, rsa: isize, csa: isize)
     where MR: ConstNum,
           T: Element,
           TReal: Element,
 {
     // use pointers as pointer to TReal
-    let pack = pack.as_mut_ptr() as *mut TReal;
+    let pack = pack.as_mut_ptr().cast::<TReal>();
     let areal = a as *const TReal;
     let aimag = areal.add(1);
 

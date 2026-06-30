@@ -11,6 +11,7 @@ use crate::kernel::GemmSelect;
 use crate::kernel::{U2, U4, c32, Element, c32_mul as mul};
 use crate::archparam;
 use crate::cgemm_common::pack_complex;
+use crate::packing::PackSlice;
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelAvx2;

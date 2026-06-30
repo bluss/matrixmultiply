@@ -24,6 +24,7 @@ use crate::kernel::GemmSelect;
 #[cfg(feature = "cgemm")]
 use crate::kernel::{c32, c64};
 use crate::threading::{get_thread_pool, ThreadPoolCtx, LoopThreadConfig};
+use crate::packing::PackSlice;
 use crate::sgemm_kernel;
 use crate::dgemm_kernel;
 #[cfg(feature = "cgemm")]
@@ -300,7 +301,7 @@ unsafe fn gemm_loop<K>(
             let a = a.stride_offset(csa, kkc * l4);
 
             // Pack B -> B~
-            K::pack_nr(kc, nc, slice::from_raw_parts_mut(bpp.ptr(), bp_size),
+            K::pack_nr(kc, nc, PackSlice::from(bpp.ptr(), bp_size),
                        b.ptr(), csb, rsb);
 
             // First time writing to C, use user's `beta`, else accumulate
@@ -320,7 +321,7 @@ unsafe fn gemm_loop<K>(
                     let c = c.stride_offset(rsc, kmc * l3);
 
                     // Pack A -> A~
-                    K::pack_mr(kc, mc, slice::from_raw_parts_mut(app.ptr(), ap_size),
+                    K::pack_mr(kc, mc, PackSlice::from(app.ptr(), ap_size),
                                a.ptr(), rsa, csa);
 
                     // LOOP 2 and 1

@@ -10,7 +10,6 @@ use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
 use crate::kernel::{U4, U8};
 use crate::archparam;
-use crate::packing::PackSlice;
 
 #[cfg(target_arch="x86")]
 use core::arch::x86::*;
@@ -18,6 +17,9 @@ use core::arch::x86::*;
 use core::arch::x86_64::*;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 use crate::x86::{FusedMulAdd, AvxMulAdd, SMultiplyAdd};
+
+#[cfg(any(target_arch="x86", target_arch="x86_64"))]
+use crate::packing::PackSlice;
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelAvx;

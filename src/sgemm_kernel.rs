@@ -680,6 +680,20 @@ unsafe fn kernel_target_wasm_simd(k: usize, alpha: T, a: *const T, b: *const T,
     const MR: usize = KernelWasmSimd::MR;
     const NR: usize = KernelWasmSimd::NR;
 
+    // Use f32x4_relaxed_madd when enabled
+    // by spec relaxed_madd is a fused multiply-add when possible, otherwise it is a multiply then add
+    #[cfg(target_feature = "relaxed-simd")]
+    #[inline(always)]
+    unsafe fn muladd(a: v128, b: v128, c: v128) -> v128 {
+        f32x4_relaxed_madd(a, b, c)
+    }
+
+    #[cfg(not(target_feature = "relaxed-simd"))]
+    #[inline(always)]
+    unsafe fn muladd(a: v128, b: v128, c: v128) -> v128 {
+        f32x4_add(f32x4_mul(a, b), c)
+    }
+
     let (mut a, mut b, rsc, csc) = if rsc == 1 { (b, a, csc, rsc) } else { (a, b, rsc, csc) };
 
     // Kernel 8 x 8 (a x b)

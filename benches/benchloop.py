@@ -44,13 +44,12 @@ def bench_loop(args, *, file):
     mcs = [None] if args.mc is None else args.mc
     for threads in args.threads:
         for ty in args.type:
-            for layout in args.layout:
-                for nc, kc, mc in itertools.product(ncs, kcs, mcs):
-                    bench_iteration(args.size, ty, nc, kc, mc,
-                                    layout=layout, threads=threads, file=file, sleep=args.sleep, wasm=args.wasm)
+            for nc, kc, mc in itertools.product(ncs, kcs, mcs):
+                bench_iteration(args.size, ty, nc, kc, mc,
+                                layouts=args.layout, threads=threads, file=file, sleep=args.sleep, wasm=args.wasm)
 
 
-def bench_iteration(sizes, ty, nc, kc, mc, *, layout, threads, file, sleep, wasm):
+def bench_iteration(sizes, ty, nc, kc, mc, *, layouts, threads, file, sleep, wasm):
     features = list(_DEFAULT_FEATURES)
     if threads > 0:
         features.append("threading")
@@ -73,7 +72,7 @@ def bench_iteration(sizes, ty, nc, kc, mc, *, layout, threads, file, sleep, wasm
     exec_env = os.environ.copy()
     exec_env["MATMUL_NUM_THREADS"] = str(threads)
     extra_column = ",".join((str(value) if value is not None else "") for value in [nc, kc, mc, threads])
-    for size in sizes:
+    for size, layout in itertools.product(sizes, layouts):
         argv = list(_WASM_EXEC if wasm else _EXEC)
         argv.extend(["--type", ty])
         argv.extend(["--csv", "--layout", layout, "--extra-column", extra_column])

@@ -64,6 +64,11 @@
 //!
 //!   - `neon`
 //!
+//! - *wasm32* target features need to be enabled at compile-time. The library
+//!   can take advantage of these if enabled:
+//!
+//!   - `simd128` (sgemm) (will also use `relaxed-simd` if enabled)
+//!
 //! ## Features
 //!
 //! ### `std`

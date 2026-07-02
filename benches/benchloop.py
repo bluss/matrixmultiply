@@ -26,7 +26,11 @@ _DEFAULT_FEATURES = "constconf cgemm".split()
 _EXEC = ["./target/release/examples/benchmark"]
 
 _WASM_TARGET = "wasm32-wasip1"
-_WASM_RUSTFLAGS = "-C target-feature=+simd128,+relaxed-simd"
+_WASM_RUSTFLAGS = {
+    "none": "",
+    "simd128": "-C target-feature=+simd128",
+    "relaxed": "-C target-feature=+simd128,+relaxed-simd",
+}
 _WASM_EXEC = ["wasmtime", "run", f"./target/{_WASM_TARGET}/release/examples/benchmark.wasm"]
 
 
@@ -57,14 +61,18 @@ def bench_iteration(sizes, ty, nc, kc, mc, *, layouts, threads, file, sleep, was
     compile_argv.append("--features=" + ",".join(features))
     file.flush()
     env = os.environ.copy()
-    if wasm:
+    if wasm is not None:
         compile_argv.extend(["--target", _WASM_TARGET])
-        env["RUSTFLAGS"] = _WASM_RUSTFLAGS
+        env["RUSTFLAGS"] = _WASM_RUSTFLAGS[wasm]
     for value, name in zip([nc, kc, mc], ["nc", "kc", "mc"]):
         if value is not None:
             env["MATMUL_" + _GEMMTYPE[ty] + "_" + name.upper()] = str(value)
 
     print("Running", " ".join(compile_argv), file=sys.stderr)
+    flags = env.get("RUSTFLAGS", "")
+    if flags:
+        print("Using RUSTFLAGS='", flags, "'", sep="")
+
     subprocess.run(compile_argv, env=env)
 
     time.sleep(_POST_COMPILE_SLEEP)
@@ -95,8 +103,9 @@ def main():
                         help="Thread use. 0: not enabled; 1: enabled but one thread; n: enabled with n threads.")
     parser.add_argument("--layout", type=layout_type, default=["fcc"], nargs="+",
                         help="Layout (f/c combos, e.g. fcc, fff)")
-    parser.add_argument("--wasm", action="store_true",
-                        help="Build for wasm32-wasip1 and run the benchmark through wasmtime.")
+    parser.add_argument("--wasm", nargs="?", const="simd128", choices=["none", "simd128", "relaxed"],
+                        help="Build for wasm32-wasip1 and run the benchmark through wasmtime, "
+                        "optionally select which features to enable.")
     parser.add_argument("--sleep", type=int, default=1, help="Time to wait between every run")
     parser.add_argument("--output", type=str, default=None, help="Output file (csv format)")
     args = parser.parse_args()

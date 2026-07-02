@@ -169,6 +169,10 @@ jobs:
             target: wasm32-wasip1
             rustflags: "-C target-feature=+simd128"
             name: simd128
+          - rust: stable
+            target: wasm32-wasip1
+            rustflags: "-C target-feature=+simd128,+relaxed-simd"
+            name: simd128 relaxed-simd
 
     name: wasm_test/${{ matrix.target }}/${{ matrix.name }}
     steps:
@@ -184,8 +188,7 @@ jobs:
           cargo test -v --tests --lib --release --no-fail-fast --target "${{ matrix.target }}"
         env:
           RUSTFLAGS: ${{ matrix.rustflags }}
-          CARGO_TARGET_WASM32_WASIP1_RUNNER: "wasmtime --dir=."
-          MMTEST_FAST_TEST: 1
+          CARGO_TARGET_WASM32_WASIP1_RUNNER: "wasmtime"
 
 
   cargo-careful:

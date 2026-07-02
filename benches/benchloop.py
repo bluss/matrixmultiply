@@ -5,6 +5,7 @@ Benchmarking script. See --help for details. Compiles benchmark, runs and output
 """
 
 import argparse
+import itertools
 import os
 import re
 import subprocess
@@ -22,7 +23,11 @@ _GEMMTYPE = {
 
 _COMPILE = "cargo rustc --example benchmark --release".split()
 _DEFAULT_FEATURES = "constconf cgemm".split()
-_EXEC = "./target/release/examples/benchmark"
+_EXEC = ["./target/release/examples/benchmark"]
+
+_WASM_TARGET = "wasm32-wasip1"
+_WASM_RUSTFLAGS = "-C target-feature=+simd128,+relaxed-simd"
+_WASM_EXEC = ["wasmtime", "run", f"./target/{_WASM_TARGET}/release/examples/benchmark.wasm"]
 
 
 def layout_type(value):
@@ -40,13 +45,12 @@ def bench_loop(args, *, file):
     for threads in args.threads:
         for ty in args.type:
             for layout in args.layout:
-                for nc in ncs:
-                    for kc in kcs:
-                        for mc in mcs:
-                            bench_iteration(args.size, ty, nc, kc, mc, layout=layout, threads=threads, file=file, sleep=args.sleep)
+                for nc, kc, mc in itertools.product(ncs, kcs, mcs):
+                    bench_iteration(args.size, ty, nc, kc, mc,
+                                    layout=layout, threads=threads, file=file, sleep=args.sleep, wasm=args.wasm)
 
 
-def bench_iteration(sizes, ty, nc, kc, mc, *, layout, threads, file, sleep):
+def bench_iteration(sizes, ty, nc, kc, mc, *, layout, threads, file, sleep, wasm):
     features = list(_DEFAULT_FEATURES)
     if threads > 0:
         features.append("threading")
@@ -54,6 +58,9 @@ def bench_iteration(sizes, ty, nc, kc, mc, *, layout, threads, file, sleep):
     compile_argv.append("--features=" + ",".join(features))
     file.flush()
     env = os.environ.copy()
+    if wasm:
+        compile_argv.extend(["--target", _WASM_TARGET])
+        env["RUSTFLAGS"] = _WASM_RUSTFLAGS
     for value, name in zip([nc, kc, mc], ["nc", "kc", "mc"]):
         if value is not None:
             env["MATMUL_" + _GEMMTYPE[ty] + "_" + name.upper()] = str(value)
@@ -67,7 +74,7 @@ def bench_iteration(sizes, ty, nc, kc, mc, *, layout, threads, file, sleep):
     exec_env["MATMUL_NUM_THREADS"] = str(threads)
     extra_column = ",".join((str(value) if value is not None else "") for value in [nc, kc, mc, threads])
     for size in sizes:
-        argv = [_EXEC]
+        argv = list(_WASM_EXEC if wasm else _EXEC)
         argv.extend(["--type", ty])
         argv.extend(["--csv", "--layout", layout, "--extra-column", extra_column])
         argv.extend([str(size)] * 3)
@@ -89,6 +96,8 @@ def main():
                         help="Thread use. 0: not enabled; 1: enabled but one thread; n: enabled with n threads.")
     parser.add_argument("--layout", type=layout_type, default=["fcc"], nargs="+",
                         help="Layout (f/c combos, e.g. fcc, fff)")
+    parser.add_argument("--wasm", action="store_true",
+                        help="Build for wasm32-wasip1 and run the benchmark through wasmtime.")
     parser.add_argument("--sleep", type=int, default=1, help="Time to wait between every run")
     parser.add_argument("--output", type=str, default=None, help="Output file (csv format)")
     args = parser.parse_args()

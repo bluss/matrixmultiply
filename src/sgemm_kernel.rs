@@ -704,27 +704,38 @@ unsafe fn kernel_target_wasm_simd(k: usize, alpha: T, a: *const T, b: *const T,
     let mut ab21 = [zero; 4];
     let mut ab22 = [zero; 4];
 
-    // ab_ij = a_i * b_j for all i, j
-    macro_rules! ab_ij_equals_ai_bj {
-        ($dest:ident, $av:expr, $bv:expr) => {
-            $dest[0] = muladd($bv, f32x4_splat(f32x4_extract_lane::<0>($av)), $dest[0]);
-            $dest[1] = muladd($bv, f32x4_splat(f32x4_extract_lane::<1>($av)), $dest[1]);
-            $dest[2] = muladd($bv, f32x4_splat(f32x4_extract_lane::<2>($av)), $dest[2]);
-            $dest[3] = muladd($bv, f32x4_splat(f32x4_extract_lane::<3>($av)), $dest[3]);
+    /// multiple sets of ptr => v1, v2 supported
+    macro_rules! load_vectors {
+        ($($a:ident => $a1:ident, $a2:ident),+) => {
+            $(
+                $a1 = v128_load($a as *const v128);
+                $a2 = v128_load($a.add(4) as *const v128);
+            )+
         }
     }
 
-    for _ in 0..k {
-        let a1 = v128_load(a as *const v128);
-        let b1 = v128_load(b as *const v128);
-        let a2 = v128_load(a.add(4) as *const v128);
-        let b2 = v128_load(b.add(4) as *const v128);
+    macro_rules! splat_lane {
+        ($v:expr, $n:tt) =>  { i32x4_shuffle::<$n, $n, $n, $n>($v, $v) };
+    }
 
+    // ab_ij = a_i * b_j for all i, j
+    macro_rules! ab_ij_equals_ai_bj {
+        ($dest:ident, $av:expr, $bv:expr) => {
+            $dest[0] = muladd($bv, splat_lane!($av, 0), $dest[0]);
+            $dest[1] = muladd($bv, splat_lane!($av, 1), $dest[1]);
+            $dest[2] = muladd($bv, splat_lane!($av, 2), $dest[2]);
+            $dest[3] = muladd($bv, splat_lane!($av, 3), $dest[3]);
+        }
+    }
+
+    let (mut a1, mut b1, mut a2, mut b2);
+
+    for _ in 0..k {
+        load_vectors!(a => a1, a2, b => b1, b2);
         ab_ij_equals_ai_bj!(ab11, a1, b1);
         ab_ij_equals_ai_bj!(ab12, a1, b2);
         ab_ij_equals_ai_bj!(ab21, a2, b1);
         ab_ij_equals_ai_bj!(ab22, a2, b2);
-
         a = a.add(MR);
         b = b.add(NR);
     }

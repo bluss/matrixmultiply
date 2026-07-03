@@ -82,7 +82,7 @@ pub(crate) unsafe fn pack_avx2<MR, T>(kc: usize, mc: usize, pack: PackSlice<T>,
 /// Safety: Requires AVX-512F
 #[cfg(has_avx512)]
 #[target_feature(enable="avx512f")]
-pub(crate) unsafe fn pack_avx512<MR, T>(kc: usize, mc: usize, pack: &mut [T],
+pub(crate) unsafe fn pack_avx512<MR, T>(kc: usize, mc: usize, pack: PackSlice<T>,
                                         a: *const T, rsa: isize, csa: isize)
     where T: Element,
           MR: ConstNum,

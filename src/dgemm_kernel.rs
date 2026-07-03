@@ -264,7 +264,7 @@ impl GemmKernel for KernelAvx512 {
     fn mc() -> usize { archparam::D_MC }
 
     #[inline]
-    unsafe fn pack_mr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+    unsafe fn pack_mr(kc: usize, mc: usize, pack: PackSlice<Self::Elem>,
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
         // safety: avx512f is enabled
@@ -272,7 +272,7 @@ impl GemmKernel for KernelAvx512 {
     }
 
     #[inline]
-    unsafe fn pack_nr(kc: usize, mc: usize, pack: &mut [Self::Elem],
+    unsafe fn pack_nr(kc: usize, mc: usize, pack: PackSlice<Self::Elem>,
                       a: *const Self::Elem, rsa: isize, csa: isize)
     {
         // safety: avx512f is enabled

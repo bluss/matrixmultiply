@@ -71,7 +71,7 @@ def bench_iteration(sizes, ty, nc, kc, mc, *, layouts, threads, file, sleep, was
     print("Running", " ".join(compile_argv), file=sys.stderr)
     flags = env.get("RUSTFLAGS", "")
     if flags:
-        print("Using RUSTFLAGS='", flags, "'", sep="")
+        print("Using RUSTFLAGS='", flags, "'", sep="", file=sys.stderr)
 
     subprocess.run(compile_argv, env=env)
 

@@ -19,7 +19,6 @@ struct KernelAvx2;
 struct KernelFma;
 
 #[cfg(target_arch = "aarch64")]
-#[cfg(has_aarch64_simd)]
 struct KernelNeon;
 
 struct KernelFallback;
@@ -45,7 +44,6 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
         }
     }
     #[cfg(target_arch = "aarch64")]
-    #[cfg(has_aarch64_simd)]
     {
         if is_aarch64_feature_detected_!("neon") {
             return selector.select(KernelNeon);
@@ -123,7 +121,6 @@ impl GemmKernel for KernelFma {
 }
 
 #[cfg(target_arch = "aarch64")]
-#[cfg(has_aarch64_simd)]
 impl GemmKernel for KernelNeon {
     type Elem = T;
 
@@ -220,14 +217,11 @@ kernel_fallback_impl_complex! {
 // Kernel neon
 
 #[cfg(target_arch = "aarch64")]
-#[cfg(has_aarch64_simd)]
 macro_rules! loop_m { ($i:ident, $e:expr) => { loop4!($i, $e) }; }
 #[cfg(target_arch = "aarch64")]
-#[cfg(has_aarch64_simd)]
 macro_rules! loop_n { ($j:ident, $e:expr) => { loop2!($j, $e) }; }
 
 #[cfg(target_arch = "aarch64")]
-#[cfg(has_aarch64_simd)]
 kernel_fallback_impl_complex! {
     [inline target_feature(enable="neon")] [fma_yes]
     kernel_target_neon, T, TReal, KernelNeon::MR, KernelNeon::NR, 1
@@ -259,7 +253,6 @@ mod tests {
     }
 
     #[cfg(target_arch = "aarch64")]
-    #[cfg(has_aarch64_simd)]
     mod test_kernel_aarch64 {
         use super::test_complex_packed_kernel;
         use super::super::*;

@@ -122,13 +122,12 @@
 //! The functions in this crate are thread safe, as long as the destination
 //! matrix is distinct.
 //!
-//! ## Rust Version
+//! ## Rust Version (MSRV)
 //!
-//! This version requires Rust 1.41.1 or later; the crate follows a carefully
+//! This version requires Rust 1.65 or later; the crate follows a carefully
 //! considered upgrade policy, where updating the minimum Rust version is not a breaking
 //! change.
 //!
-//! Some features are enabled with later versions: from Rust 1.61 AArch64 NEON support.
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.3/")]
 #![cfg_attr(not(feature = "std"), no_std)]

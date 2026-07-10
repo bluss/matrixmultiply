@@ -957,16 +957,20 @@ mod tests {
                 // skip
                 return;
             }
-            let feature_name = option_env!("MMTEST_FEATURE")
+            let feature_names = option_env!("MMTEST_FEATURE")
                                           .expect("No MMTEST_FEATURE configured!");
-            let detected = match feature_name {
-                "avx" => is_x86_feature_detected_!("avx"),
-                "fma" => is_x86_feature_detected_!("fma"),
-                "sse2" => is_x86_feature_detected_!("sse2"),
-                _ => false,
-            };
-            assert!(detected, "Feature {:?} was not detected, so it could not be tested",
-                    feature_name);
+            for feature_name in feature_names.split(",") {
+                let detected = match feature_name {
+                    "sse2" => is_x86_feature_detected_!("sse2"),
+                    "avx" => is_x86_feature_detected_!("avx"),
+                    "fma" => is_x86_feature_detected_!("fma"),
+                    "avx2" => is_x86_feature_detected_!("avx2"),
+                    "avx512f" => is_x86_feature_detected_!("avx512f"),
+                    _ => panic!("Unknown feature {:?}", feature_name),
+                };
+                assert!(detected, "Feature {:?} was not detected, so it could not be tested",
+                        feature_name);
+            }
         }
     }
 }

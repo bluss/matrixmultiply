@@ -145,6 +145,7 @@ mod loopmacros;
 
 mod archparam_defaults;
 
+mod constfind;
 #[cfg(feature = "constconf")]
 mod archparam;
 #[cfg(feature = "constconf")]
@@ -162,8 +163,7 @@ mod threading;
 mod aligned_alloc;
 mod util;
 
-#[macro_use]
-mod archmacros;
+mod target_features;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_use]
 mod x86;
@@ -191,3 +191,5 @@ pub use crate::gemm::cgemm;
 pub use crate::gemm::zgemm;
 #[cfg(feature = "cgemm")]
 pub use crate::gemm::CGemmOption;
+
+pub(crate) use crate::target_features::allow_feature;

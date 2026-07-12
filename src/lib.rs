@@ -58,6 +58,7 @@
 //!   - `fma`
 //!   - `avx`
 //!   - `sse2`
+//!   - `avx512f`
 //!
 //! - *aarch64* features can be detected at runtime by default or compile time
 //!   (if enabled), and the following kernel variants are implemented:
@@ -91,6 +92,19 @@
 //! or
 //! [`target-feature`](https://doc.rust-lang.org/rustc/codegen-options/index.html#target-feature)
 //! option to `rustc`.)
+//!
+//! ### `avx512`
+//!
+//! `avx512` is enabled by default.
+//!
+//! It compiles the AVX-512 kernels, which are then used at runtime on CPUs
+//! that support the `avx512f` (maybe more avx512 subsets support in the future) target feature.
+//! It requires Rust 1.89 or later and has no effect on older compilers.
+//! To disable it, use this in your `Cargo.toml`:
+//!
+//! ```toml
+//! matrixmultiply = { version = "0.3", default-features = false, features = ["std"] }
+//! ```
 //!
 //! ### `threading`
 //!
@@ -128,7 +142,8 @@
 //! considered upgrade policy, where updating the minimum Rust version is not a breaking
 //! change.
 //!
-//! Some features are enabled with later versions: from Rust 1.61 AArch64 NEON support.
+//! Some features are enabled with later versions: from Rust 1.61 AArch64 NEON
+//! support, and from Rust 1.89 x86/x86-64 AVX-512 support.
 
 #![doc(html_root_url = "https://docs.rs/matrixmultiply/0.3/")]
 #![cfg_attr(not(feature = "std"), no_std)]

@@ -13,7 +13,7 @@ repository = "https://github.com/bluss/matrixmultiply/"
 documentation = "https://docs.rs/matrixmultiply/"
 
 description = """
-General matrix multiplication for f32 and f64 matrices. Operates on matrices with general layout (they can use arbitrary row and column stride). Detects and uses AVX or SSE2 on x86 platforms transparently for higher performance. Uses a microkernel strategy, so that the implementation is easy to parallelize and optimize.
+General matrix multiplication for f32 and f64 matrices. Operates on matrices with general layout (they can use arbitrary row and column stride). Detects and uses AVX-512, AVX or SSE2 on x86 platforms transparently for higher performance. Uses a microkernel strategy, so that the implementation is easy to parallelize and optimize.
 
 Supports multithreading."""
 
@@ -43,13 +43,14 @@ bencher = "0.1.2"
 itertools = "0.8"
 
 [features]
-default = ["std"]
+default = ["std", "avx512"]
 
 # support for complex f32, complex f64
 cgemm = []
 
 threading = ["thread-tree", "std", "once_cell", "num_cpus"]
 std = []
+avx512 = []
 
 # support for compile-time configuration
 constconf = []

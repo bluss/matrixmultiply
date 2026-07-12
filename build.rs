@@ -23,7 +23,9 @@ fn main() {
     }
     if target_arch == "x86" || target_arch == "x86_64" {
         // From 1.89 AVX-512 intrinsics ("avx512f")
-        if ac.probe_rustc_version(1, 89) {
+        if ac.probe_rustc_version(1, 89)
+            && std::env::var_os("CARGO_FEATURE_AVX512").is_some()
+        {
             println!("cargo:rustc-cfg=has_avx512");
         }
     }

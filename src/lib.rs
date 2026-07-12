@@ -93,6 +93,19 @@
 //! [`target-feature`](https://doc.rust-lang.org/rustc/codegen-options/index.html#target-feature)
 //! option to `rustc`.)
 //!
+//! ### `avx512`
+//!
+//! `avx512` is enabled by default.
+//!
+//! It compiles the AVX-512 kernels, which are then used at runtime on CPUs
+//! that support the `avx512f` (maybe more avx512 subsets support in the future) target feature.
+//! It requires Rust 1.89 or later and has no effect on older compilers.
+//! To disable it, use this in your `Cargo.toml`:
+//!
+//! ```toml
+//! matrixmultiply = { version = "0.3", default-features = false, features = ["std"] }
+//! ```
+//!
 //! ### `threading`
 //!
 //! `threading` is an optional crate feature

@@ -31,8 +31,6 @@ struct KernelAvx;
 struct KernelFmaAvx2;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFma;
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct KernelSse2;
 #[cfg(has_avx512)]
 struct KernelAvx512;
 
@@ -66,8 +64,6 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
             return selector.select(KernelFma);
         } else if is_x86_feature_detected_!("avx") {
             return selector.select(KernelAvx);
-        } else if is_x86_feature_detected_!("sse2") {
-            return selector.select(KernelSse2);
         }
     }
 
@@ -209,41 +205,6 @@ impl GemmKernel for KernelFmaAvx2 {
     }
 }
 
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl GemmKernel for KernelSse2 {
-    type Elem = T;
-
-    type MRTy = U4;
-    type NRTy = U4;
-
-    #[inline(always)]
-    fn align_to() -> usize { 16 }
-
-    #[inline(always)]
-    fn always_masked() -> bool { true }
-
-    #[inline(always)]
-    fn nc() -> usize { archparam::D_NC }
-    #[inline(always)]
-    fn kc() -> usize { archparam::D_KC }
-    #[inline(always)]
-    fn mc() -> usize { archparam::D_MC }
-
-    #[inline(always)]
-    unsafe fn kernel(
-        k: usize,
-        alpha: T,
-        a: *const T,
-        b: *const T,
-        beta: T,
-        c: *mut T,
-        rsc: isize,
-        csc: isize)
-    {
-        kernel_target_sse2(k, alpha, a, b, beta, c, rsc, csc)
-    }
-}
-
 #[cfg(has_avx512)]
 impl GemmKernel for KernelAvx512 {
     type Elem = T;
@@ -374,15 +335,6 @@ unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
                             beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     kernel_x86_avx::<AvxMulAdd>(k, alpha, a, b, beta, c, rsc, csc)
-}
-
-#[inline]
-#[target_feature(enable="sse2")]
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
-                                 beta: T, c: *mut T, rsc: isize, csc: isize)
-{
-    kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc)
 }
 
 #[inline(always)]
@@ -1233,8 +1185,7 @@ mod tests {
 
         test_arch_kernels_x86! {
             "fma", fma, KernelFma,
-            "avx", avx, KernelAvx,
-            "sse2", sse2, KernelSse2
+            "avx", avx, KernelAvx
         }
 
         #[cfg(has_avx512)]

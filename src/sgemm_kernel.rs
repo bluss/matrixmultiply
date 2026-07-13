@@ -32,8 +32,6 @@ struct KernelAvx;
 struct KernelFmaAvx2;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFma;
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct KernelSse2;
 #[cfg(has_avx512)]
 struct KernelAvx512;
 
@@ -68,8 +66,6 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
             return selector.select(KernelFma);
         } else if is_x86_feature_detected_!("avx") {
             return selector.select(KernelAvx);
-        } else if is_x86_feature_detected_!("sse2") {
-            return selector.select(KernelSse2);
         }
     }
     #[cfg(target_arch="aarch64")]
@@ -200,38 +196,6 @@ impl GemmKernel for KernelFmaAvx2 {
         beta: T,
         c: *mut T, rsc: isize, csc: isize) {
         kernel_target_fma(k, alpha, a, b, beta, c, rsc, csc)
-    }
-}
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl GemmKernel for KernelSse2 {
-    type Elem = T;
-
-    type MRTy = <KernelFallback as GemmKernel>::MRTy;
-    type NRTy = <KernelFallback as GemmKernel>::NRTy;
-
-    #[inline(always)]
-    fn align_to() -> usize { 16 }
-
-    #[inline(always)]
-    fn always_masked() -> bool { KernelFallback::always_masked() }
-
-    #[inline(always)]
-    fn nc() -> usize { archparam::S_NC }
-    #[inline(always)]
-    fn kc() -> usize { archparam::S_KC }
-    #[inline(always)]
-    fn mc() -> usize { archparam::S_MC }
-
-    #[inline(always)]
-    unsafe fn kernel(
-        k: usize,
-        alpha: T,
-        a: *const T,
-        b: *const T,
-        beta: T,
-        c: *mut T, rsc: isize, csc: isize) {
-        kernel_target_sse2(k, alpha, a, b, beta, c, rsc, csc)
     }
 }
 
@@ -394,15 +358,6 @@ unsafe fn kernel_target_avx(k: usize, alpha: T, a: *const T, b: *const T,
                             beta: T, c: *mut T, rsc: isize, csc: isize)
 {
     kernel_x86_avx::<AvxMulAdd>(k, alpha, a, b, beta, c, rsc, csc)
-}
-
-#[inline]
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-#[target_feature(enable="sse2")]
-unsafe fn kernel_target_sse2(k: usize, alpha: T, a: *const T, b: *const T,
-                             beta: T, c: *mut T, rsc: isize, csc: isize)
-{
-    kernel_fallback_impl(k, alpha, a, b, beta, c, rsc, csc)
 }
 
 #[inline(always)]
@@ -1053,8 +1008,7 @@ mod tests {
 
         test_arch_kernels_x86! {
             "fma", fma, KernelFma,
-            "avx", avx, KernelAvx,
-            "sse2", sse2, KernelSse2
+            "avx", avx, KernelAvx
         }
 
         #[cfg(has_avx512)]
@@ -1076,7 +1030,6 @@ mod tests {
                                           .expect("No MMTEST_FEATURE configured!");
             for feature_name in feature_names.split(",") {
                 let detected = match feature_name {
-                    "sse2" => is_x86_feature_detected_!("sse2"),
                     "avx" => is_x86_feature_detected_!("avx"),
                     "fma" => is_x86_feature_detected_!("fma"),
                     "avx2" => is_x86_feature_detected_!("avx2"),

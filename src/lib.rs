@@ -57,7 +57,6 @@
 //!
 //!   - `fma`
 //!   - `avx`
-//!   - `sse2`
 //!   - `avx512f`
 //!
 //! - *aarch64* features can be detected at runtime by default or compile time,

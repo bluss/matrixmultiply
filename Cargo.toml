@@ -23,6 +23,7 @@ categories = ["science"]
 exclude = ["examples/*", "ci/*", ".github/*", "benches/*"]
 
 build = "build.rs"
+rust-version = "1.75.0" # MSRV
 
 [lib]
 bench = false

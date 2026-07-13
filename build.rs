@@ -15,15 +15,8 @@ fn main() {
     // Avoid `unexpected_cfgs` lint from 1.80+ toolchains
     if ac.probe_rustc_version(1, 80) {
         println!("cargo:rustc-check-cfg=cfg(has_avx512)");
-        println!("cargo:rustc-check-cfg=cfg(has_aarch64_simd)");
     }
 
-    if target_arch == "aarch64" {
-        // From 1.61 aarch64 intrinsics and #[target_feature]
-        if ac.probe_rustc_version(1, 61) {
-            println!("cargo:rustc-cfg=has_aarch64_simd");
-        }
-    }
     if target_arch == "x86" || target_arch == "x86_64" {
         // From 1.89 AVX-512 intrinsics ("avx512f")
         if ac.probe_rustc_version(1, 89)

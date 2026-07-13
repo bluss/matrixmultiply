@@ -55,8 +55,8 @@
 //!   compile time, and the following kernel variants are
 //!   implemented:
 //!
-//!   - `fma`
 //!   - `avx`
+//!   - `avx2,fma`
 //!   - `avx512f`
 //!
 //! - *aarch64* features can be detected at runtime by default or compile time,

@@ -30,8 +30,6 @@ use crate::packing::PackSlice;
 struct KernelAvx;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelFmaAvx2;
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct KernelFma;
 #[cfg(has_avx512)]
 struct KernelAvx512;
 
@@ -59,11 +57,8 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
                 return selector.select(KernelAvx512);
             }
         }
-        if is_x86_feature_detected_!("fma") {
-            if is_x86_feature_detected_!("avx2") {
-                return selector.select(KernelFmaAvx2);
-            }
-            return selector.select(KernelFma);
+        if is_x86_feature_detected_!("fma") && is_x86_feature_detected_!("avx2") {
+            return selector.select(KernelFmaAvx2);
         } else if is_x86_feature_detected_!("avx") {
             return selector.select(KernelAvx);
         }
@@ -116,38 +111,6 @@ impl GemmKernel for KernelAvx {
         beta: T,
         c: *mut T, rsc: isize, csc: isize) {
         kernel_target_avx(k, alpha, a, b, beta, c, rsc, csc)
-    }
-}
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl GemmKernel for KernelFma {
-    type Elem = T;
-
-    type MRTy = <KernelAvx as GemmKernel>::MRTy;
-    type NRTy = <KernelAvx as GemmKernel>::NRTy;
-
-    #[inline(always)]
-    fn align_to() -> usize { KernelAvx::align_to() }
-
-    #[inline(always)]
-    fn always_masked() -> bool { KernelAvx::always_masked() }
-
-    #[inline(always)]
-    fn nc() -> usize { archparam::S_NC }
-    #[inline(always)]
-    fn kc() -> usize { archparam::S_KC }
-    #[inline(always)]
-    fn mc() -> usize { archparam::S_MC }
-
-    #[inline(always)]
-    unsafe fn kernel(
-        k: usize,
-        alpha: T,
-        a: *const T,
-        b: *const T,
-        beta: T,
-        c: *mut T, rsc: isize, csc: isize) {
-        kernel_target_fma(k, alpha, a, b, beta, c, rsc, csc)
     }
 }
 
@@ -991,15 +954,15 @@ mod tests {
         use std::println;
 
         macro_rules! test_arch_kernels_x86 {
-            ($($feature_name:tt, $name:ident, $kernel_ty:ty),*) => {
+            ($([$($feature_name:tt),+], $name:ident, $kernel_ty:ty),*) => {
                 $(
                 #[test]
                 fn $name() {
-                    if is_x86_feature_detected_!($feature_name) {
+                    if $(is_x86_feature_detected_!($feature_name) &&)+ true {
                         test_a_kernel::<$kernel_ty, _>(stringify!($name));
                     } else {
                         #[cfg(feature = "std")]
-                        println!("Skipping, host does not have feature: {:?}", $feature_name);
+                        println!("Skipping, host does not have feature(s): {:?}", &[$($feature_name),+]);
                     }
                 }
                 )*
@@ -1007,13 +970,13 @@ mod tests {
         }
 
         test_arch_kernels_x86! {
-            "fma", fma, KernelFma,
-            "avx", avx, KernelAvx
+            ["fma", "avx2"], fma_avx2, KernelFmaAvx2,
+            ["avx"], avx, KernelAvx
         }
 
         #[cfg(has_avx512)]
         test_arch_kernels_x86! {
-            "avx512f", avx512f, KernelAvx512
+            ["avx512f"], avx512f, KernelAvx512
         }
 
         #[test]

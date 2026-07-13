@@ -52,7 +52,7 @@
 //!   on all targets. These may depend on autovectorization to perform well.
 //!
 //! - *x86* and *x86-64* features can be detected at runtime by default or
-//!   compile time (if enabled), and the following kernel variants are
+//!   compile time, and the following kernel variants are
 //!   implemented:
 //!
 //!   - `fma`
@@ -60,8 +60,8 @@
 //!   - `sse2`
 //!   - `avx512f`
 //!
-//! - *aarch64* features can be detected at runtime by default or compile time
-//!   (if enabled), and the following kernel variants are implemented:
+//! - *aarch64* features can be detected at runtime by default or compile time,
+//!   and the following kernel variants are implemented:
 //!
 //!   - `neon`
 //!
@@ -97,14 +97,8 @@
 //!
 //! `avx512` is enabled by default.
 //!
-//! It compiles the AVX-512 kernels, which are then used at runtime on CPUs
-//! that support the `avx512f` (maybe more avx512 subsets support in the future) target feature.
-//! It requires Rust 1.89 or later and has no effect on older compilers.
-//! To disable it, use this in your `Cargo.toml`:
-//!
-//! ```toml
-//! matrixmultiply = { version = "0.3", default-features = false, features = ["std"] }
-//! ```
+//! It enables the AVX-512 kernels for x86/x86-64, which are then used at runtime on CPUs that
+//! support the `avx512f` target feature.
 //!
 //! ### `threading`
 //!

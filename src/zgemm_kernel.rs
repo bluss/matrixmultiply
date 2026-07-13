@@ -18,8 +18,6 @@ use crate::packing::PackSlice;
 struct KernelAvx512;
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 struct KernelAvx2;
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-struct KernelFma;
 
 #[cfg(target_arch = "aarch64")]
 struct KernelNeon;
@@ -45,11 +43,8 @@ pub(crate) fn detect<G>(selector: G) where G: GemmSelect<T> {
                 return selector.select(KernelAvx512);
             }
         }
-        if is_x86_feature_detected_!("fma") {
-            if is_x86_feature_detected_!("avx2") {
-                return selector.select(KernelAvx2);
-            }
-            return selector.select(KernelFma);
+        if is_x86_feature_detected_!("fma") && is_x86_feature_detected_!("avx2") {
+            return selector.select(KernelAvx2);
         }
     }
     #[cfg(target_arch = "aarch64")]
@@ -132,40 +127,6 @@ impl GemmKernel for KernelAvx2 {
     }
 }
 
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-impl GemmKernel for KernelFma {
-    type Elem = T;
-
-    type MRTy = <KernelFallback as GemmKernel>::MRTy;
-    type NRTy = <KernelFallback as GemmKernel>::NRTy;
-
-    #[inline(always)]
-    fn align_to() -> usize { 16 }
-
-    #[inline(always)]
-    fn always_masked() -> bool { KernelFallback::always_masked() }
-
-    #[inline(always)]
-    fn nc() -> usize { archparam::Z_NC }
-    #[inline(always)]
-    fn kc() -> usize { archparam::Z_KC }
-    #[inline(always)]
-    fn mc() -> usize { archparam::Z_MC }
-
-    pack_methods!{}
-
-    #[inline(always)]
-    unsafe fn kernel(
-        k: usize,
-        alpha: T,
-        a: *const T,
-        b: *const T,
-        beta: T,
-        c: *mut T, rsc: isize, csc: isize) {
-        kernel_target_fma(k, alpha, a, b, beta, c, rsc, csc)
-    }
-}
-
 #[cfg(target_arch = "aarch64")]
 impl GemmKernel for KernelNeon {
     type Elem = T;
@@ -236,15 +197,8 @@ impl GemmKernel for KernelFallback {
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
 kernel_fallback_impl_complex! {
     // instantiate fma separately
-    [inline target_feature(enable="fma") target_feature(enable="avx2")] [fma_yes]
+    [inline target_feature(enable="fma,avx2")] [fma_yes]
     kernel_target_avx2, T, TReal, KernelAvx2::MR, KernelAvx2::NR, 4
-}
-
-#[cfg(any(target_arch="x86", target_arch="x86_64"))]
-kernel_fallback_impl_complex! {
-    // instantiate fma separately
-    [inline target_feature(enable="fma")] [fma_no]
-    kernel_target_fma, T, TReal, KernelFma::MR, KernelFma::NR, 2
 }
 
 // Kernel neon
@@ -335,7 +289,6 @@ mod tests {
         }
 
         test_arch_kernels_x86! {
-            "fma", fma, KernelFma,
             "avx2", avx2, KernelAvx2
         }
 

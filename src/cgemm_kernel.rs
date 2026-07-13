@@ -11,6 +11,7 @@ use crate::kernel::GemmSelect;
 use crate::kernel::{U2, U4, c32, Element, c32_mul as mul};
 #[cfg(has_avx512)]
 use crate::kernel::U8;
+use crate::kernel_util::at;
 use crate::archparam;
 use crate::cgemm_common::pack_complex;
 use crate::packing::PackSlice;
@@ -298,11 +299,6 @@ macro_rules! loop_n { ($j:ident, $e:expr) => { loop2!($j, $e) }; }
 kernel_fallback_impl_complex! {
     [inline(always)] [fma_no]
     kernel_fallback_impl, T, TReal, KernelFallback::MR, KernelFallback::NR, 1
-}
-
-#[inline(always)]
-unsafe fn at(ptr: *const TReal, i: usize) -> TReal {
-    *ptr.add(i)
 }
 
 #[cfg(test)]

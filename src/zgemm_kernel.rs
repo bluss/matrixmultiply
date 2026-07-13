@@ -9,6 +9,7 @@
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
 use crate::kernel::{U2, U4, c64, Element, c64_mul as mul};
+use crate::kernel_util::at;
 use crate::archparam;
 use crate::cgemm_common::pack_complex;
 use crate::packing::PackSlice;
@@ -276,11 +277,6 @@ kernel_fallback_impl_complex! {
     // instantiate separately
     [inline target_feature(enable="avx512f")] [fma_yes]
     kernel_target_avx512, T, TReal, KernelAvx512::MR, KernelAvx512::NR, 4
-}
-
-#[inline(always)]
-unsafe fn at(ptr: *const TReal, i: usize) -> TReal {
-    *ptr.add(i)
 }
 
 #[cfg(test)]

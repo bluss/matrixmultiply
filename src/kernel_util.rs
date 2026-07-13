@@ -28,3 +28,9 @@ pub(crate) fn preferential_transpose<T>(mr: usize, nr: usize, a: *const T, b: *c
     if prefer_row_major_c { (a, b, rsc, csc) } else { (b, a, csc, rsc) }
 }
 
+/// Dereference pointer at offset `i`
+#[inline(always)]
+pub(crate) unsafe fn at<T: Copy>(ptr: *const T, i: usize) -> T {
+    *ptr.add(i)
+}
+

@@ -13,6 +13,7 @@ use crate::kernel::{U4, U8};
 use crate::kernel::U16;
 #[cfg(any(target_arch="x86", target_arch="x86_64", target_arch="aarch64", target_arch="wasm32"))]
 use crate::kernel_util::preferential_transpose;
+use crate::kernel_util::at;
 use crate::archparam;
 
 #[cfg(target_arch="x86")]
@@ -958,8 +959,8 @@ unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
     unroll_by!(4 => k, {
         loop8!(i, loop4!(j, ab[i][j] += at(a, i) * at(b, j)));
 
-        a = a.offset(MR as isize);
-        b = b.offset(NR as isize);
+        a = a.add(MR);
+        b = b.add(NR);
     });
 
     macro_rules! c {
@@ -968,11 +969,6 @@ unsafe fn kernel_fallback_impl(k: usize, alpha: T, a: *const T, b: *const T,
 
     // set C = α A B
     loop4!(j, loop8!(i, *c![i, j] = alpha * ab[i][j]));
-}
-
-#[inline(always)]
-unsafe fn at(ptr: *const T, i: usize) -> T {
-    *ptr.offset(i as isize)
 }
 
 #[cfg(test)]

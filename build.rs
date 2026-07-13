@@ -1,6 +1,8 @@
 fn main() {
+    // NOTE: from Rust 1.77: `cargo::` syntax. As long as before that is supported we use `cargo:`.
+
     println!("cargo:rerun-if-changed=build.rs");
-    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or(String::new());
+    let target_arch = std::env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
 
     let ac = match autocfg::AutoCfg::new() {
         Ok(ac) => ac,
@@ -12,7 +14,8 @@ fn main() {
 
     // Avoid `unexpected_cfgs` lint from 1.80+ toolchains
     if ac.probe_rustc_version(1, 80) {
-        println!("cargo::rustc-check-cfg=cfg(has_avx512)");
+        println!("cargo:rustc-check-cfg=cfg(has_avx512)");
+        println!("cargo:rustc-check-cfg=cfg(has_aarch64_simd)");
     }
 
     if target_arch == "aarch64" {

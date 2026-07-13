@@ -171,14 +171,19 @@ mod threading;
 mod aligned_alloc;
 mod util;
 
-#[macro_use]
-mod archmacros;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
+mod constfind;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
+mod target_features;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64"))]
+pub(crate) use crate::target_features::allow_feature;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[macro_use]
 mod x86;
-#[cfg(any(target_arch = "aarch64"))]
+#[cfg(target_arch = "aarch64")]
 #[macro_use]
 mod aarch64;
+
 
 mod dgemm_kernel;
 mod sgemm_kernel;

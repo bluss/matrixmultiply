@@ -164,6 +164,7 @@ pub(crate) use archparam_defaults as archparam;
 
 mod gemm;
 mod kernel;
+mod kernel_util;
 mod packing;
 mod ptr;
 mod threading;

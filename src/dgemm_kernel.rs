@@ -10,6 +10,8 @@ use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
 #[allow(unused)]
 use crate::kernel::{U4, U8};
+#[cfg(has_avx512)]
+use crate::kernel_util::preferential_transpose;
 use crate::archparam;
 
 #[cfg(target_arch="x86")]
@@ -951,10 +953,8 @@ unsafe fn kernel_target_avx512(k: usize, alpha: T, a: *const T, b: *const T,
 
     let mut ab = [_mm512_setzero_pd(); MR];
 
-    // Compute C in whichever orientation makes the output columns contiguous.
-    let prefer_row_major_c = rsc != 1;
-    let (mut a, mut b) = if prefer_row_major_c { (a, b) } else { (b, a) };
-    let (rsc, csc) = if prefer_row_major_c { (rsc, csc) } else { (csc, rsc) };
+    // Compute C in whichever orientation makes the output columns contiguous
+    let (mut a, mut b, rsc, csc) = preferential_transpose(MR, NR, a, b, rsc, csc);
 
     // Compute A B. The packed buffers are 64-byte aligned
     let mut bv = _mm512_load_pd(b);

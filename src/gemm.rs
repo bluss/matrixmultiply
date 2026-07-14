@@ -245,10 +245,10 @@ fn ensure_kernel_params<K>()
     assert!(mr > 0 && mr <= KERNEL_MAX_MR);
     assert!(nr > 0 && nr <= KERNEL_MAX_NR);
     assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE);
-    assert!(K::align_to() <= KERNEL_MAX_ALIGN);
+    assert!(K::ALIGNMENT <= KERNEL_MAX_ALIGN);
     // one row/col of the kernel is limiting the max align we can provide
     let max_align = size_of::<K::Elem>() * min(mr, nr);
-    assert!(K::align_to() <= max_align);
+    assert!(K::ALIGNMENT <= max_align);
 
     assert!(K::MR <= K::mc());
     assert!(K::mc() <= K::kc());
@@ -405,7 +405,7 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
     let mr = K::MR;
     let nr = K::NR;
     // check for the mask buffer that fits 8 x 8 f32 and 8 x 4 f64 kernels and alignment
-    assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE && K::align_to() <= KERNEL_MAX_ALIGN);
+    assert!(mr * nr * size_of::<K::Elem>() <= KERNEL_MAX_SIZE && K::ALIGNMENT <= KERNEL_MAX_ALIGN);
 
     #[cfg(not(feature = "std"))]
     let mut mask_buf = MaskBuffer { buffer: [0; MASK_BUF_SIZE] };
@@ -424,7 +424,7 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
             {
                 ptr = MASK_BUF.with(|buf| (*buf.get()).buffer.as_mut_ptr());
             }
-            ptr = align_ptr(K::align_to(), ptr);
+            ptr = align_ptr(K::ALIGNMENT, ptr);
             slice::from_raw_parts_mut(ptr as *mut K::Elem, KERNEL_MAX_SIZE / size_of::<K::Elem>())
         })
         .for_each(move |_tp, mask_buf, l2, nr_| {
@@ -483,7 +483,7 @@ unsafe fn make_packing_buffer<K>(m: usize, k: usize, n: usize, na: usize)
              nelem, apack_size, bpack_size,
              m,k,n, na);
 
-    (Alloc::new(nelem, K::align_to()), apack_size, bpack_size)
+    (Alloc::new(nelem, K::ALIGNMENT), apack_size, bpack_size)
 }
 
 /// offset the ptr forwards to align to a specific byte count

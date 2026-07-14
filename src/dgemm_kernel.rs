@@ -85,8 +85,7 @@ impl GemmKernel for KernelAvx {
     type MRTy = U8;
     type NRTy = U4;
 
-    #[inline(always)]
-    fn align_to() -> usize { 32 }
+    const ALIGNMENT: usize = 32;
 
     #[inline(always)]
     fn always_masked() -> bool { false }
@@ -120,8 +119,7 @@ impl GemmKernel for KernelFmaAvx2 {
     type MRTy = <KernelAvx as GemmKernel>::MRTy;
     type NRTy = <KernelAvx as GemmKernel>::NRTy;
 
-    #[inline(always)]
-    fn align_to() -> usize { KernelAvx::align_to() }
+    const ALIGNMENT: usize = KernelAvx::ALIGNMENT;
 
     #[inline(always)]
     fn always_masked() -> bool { KernelAvx::always_masked() }
@@ -172,8 +170,7 @@ impl GemmKernel for KernelAvx512 {
     type MRTy = U8;
     type NRTy = U8;
 
-    #[inline(always)]
-    fn align_to() -> usize { 64 }
+    const ALIGNMENT: usize = 64;
 
     #[inline(always)]
     fn always_masked() -> bool { false }
@@ -220,8 +217,7 @@ impl GemmKernel for KernelNeon {
     type MRTy = U8;
     type NRTy = U4;
 
-    #[inline(always)]
-    fn align_to() -> usize { 32 }
+    const ALIGNMENT: usize = 32;
 
     #[inline(always)]
     fn always_masked() -> bool { false }
@@ -250,9 +246,6 @@ impl GemmKernel for KernelFallback {
 
     type MRTy = U4;
     type NRTy = U4;
-
-    #[inline(always)]
-    fn align_to() -> usize { 0 }
 
     #[inline(always)]
     fn always_masked() -> bool { true }

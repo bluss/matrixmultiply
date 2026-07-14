@@ -24,7 +24,7 @@ pub(crate) trait GemmKernel {
     type NRTy: ConstNum;
 
     /// align inputs to this
-    fn align_to() -> usize;
+    const ALIGNMENT: usize = 0;
 
     /// Whether to always use the masked wrapper around the kernel.
     fn always_masked() -> bool;
@@ -223,7 +223,7 @@ pub(crate) mod test {
               K::Elem: Copy,
     {
         unsafe {
-            Alloc::new(n, K::align_to()).init_with(elt)
+            Alloc::new(n, K::ALIGNMENT).init_with(elt)
         }
     }
 

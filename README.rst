@@ -51,10 +51,24 @@ __ https://bluss.github.io/rust/2016/03/28/a-gemmed-rabbit-hole/
 Recent Changes
 --------------
 
-- Unreleased
+- 0.3.11
 
-  - Add AVX-512 microkernels for sgemm (16×16) and dgemm (8×8)
-  - Add AVX-512 microkernels for cgemm (8×4) and zgemm (4×4)
+  - Add AVX-512 microkernels for sgemm, dgemm, cgemm and zgemm, a significant performance improvement when it is available.
+    By `@SomeB1oody <https://github.com/SomeB1oody>`_ `#100 <https://github.com/bluss/matrixmultiply/pull/100>`_
+  - Add sgemm kernel for wasm32 SIMD128 by `@byeongjee <https://github.com/byeongjee>`_ `#99 <https://github.com/bluss/matrixmultiply/pull/99>`_
+  - Use MaybeUninit for uninitialized packing buffer memory by `@bluss <https://github.com/bluss>`_ `#103 <https://github.com/bluss/matrixmultiply/pull/103>`_
+  - Reduce shuffle overhead in AVX sgemm by `@SongXiaoXi <https://github.com/SongXiaoXi>`_ `#91 <https://github.com/bluss/matrixmultiply/pull/91>`_
+  - Remove separate sse2 and fma kernels by `@bluss <https://github.com/bluss>`_ `#107 <https://github.com/bluss/matrixmultiply/pull/107>`_
+  - We now require Rust 1.75 as the minimal version (MSRV) by `@bluss <https://github.com/bluss>`_ `#106 <https://github.com/bluss/matrixmultiply/pull/106>`_
+
+  Maintainer tasks and test changes
+
+  - Fix typo in comment by `@leopardracer <https://github.com/leopardracer>`_ `#92 <https://github.com/bluss/matrixmultiply/pull/92>`_
+  - Wasm32 benchmark support by `@bluss <https://github.com/bluss>`_ `#101 <https://github.com/bluss/matrixmultiply/pull/101>`_
+  - Remove unused files and strip scripts and unused files from published crate by `@bluss <https://github.com/bluss>`_ `#96 <https://github.com/bluss/matrixmultiply/pull/96>`_
+  - Smaller edits on AVX-512 functionality and kernels by `@bluss <https://github.com/bluss>`_ `#105 <https://github.com/bluss/matrixmultiply/pull/105>`_
+  - Use associated constants (internal change) by `@bluss <https://github.com/bluss>`_ `#108 <https://github.com/bluss/matrixmultiply/pull/108>`_
+  - Update to dev-dependency itertools to 0.15 by `@bluss <https://github.com/bluss>`_ `#109 <https://github.com/bluss/matrixmultiply/pull/109>`_
 
 - 0.3.10
 

@@ -18,7 +18,7 @@ use crate::ptr::Ptr;
 use crate::util::range_chunk;
 use crate::util::round_up_to;
 
-use crate::kernel::Element;
+use crate::kernel::{ConstNum, Element};
 use crate::kernel::GemmKernel;
 use crate::kernel::GemmSelect;
 #[cfg(feature = "cgemm")]
@@ -524,23 +524,21 @@ unsafe fn masked_kernel<T, K>(k: usize, alpha: T,
 {
     // use column major order for `mask_buf`
     K::kernel(k, alpha, a, b, T::zero(), mask_buf.as_mut_ptr(), 1, K::MR as isize);
-    c_to_masked_ab_beta_c::<_, K>(beta, c, rsc, csc, rows, cols, &*mask_buf);
+    c_to_masked_ab_beta_c::<_, K::MRTy, K::NRTy>(beta, c, rsc, csc, rows, cols, &*mask_buf);
 }
 
 /// Copy output in `mask_buf` to the actual c matrix
 ///
 /// C ← M + βC  where M is the `mask_buf`
 #[inline]
-unsafe fn c_to_masked_ab_beta_c<T, K>(beta: T,
-                                      c: *mut T, rsc: isize, csc: isize,
-                                      rows: usize, cols: usize,
-                                      mask_buf: &[T])
-    where K: GemmKernel<Elem=T>, T: Element,
+unsafe fn c_to_masked_ab_beta_c<T, MR, NR>(beta: T, c: *mut T, rsc: isize, csc: isize,
+                                           rows: usize, cols: usize, mask_buf: &[T])
+    where T: Element, MR: ConstNum, NR: ConstNum,
 {
     // note: use separate function here with `&T` argument for mask buf,
     // so that the compiler sees that `c` and `mask_buf` never alias.
-    let mr = K::MR;
-    let nr = K::NR;
+    let mr = MR::VALUE;
+    let nr = NR::VALUE;
     let mut ab = mask_buf.as_ptr();
     for j in 0..nr {
         for i in 0..mr {

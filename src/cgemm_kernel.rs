@@ -66,9 +66,7 @@ impl GemmKernel for KernelAvx512 {
     type NRTy = U4;
 
     const ALIGNMENT: usize = 32;
-
-    #[inline(always)]
-    fn always_masked() -> bool { KernelFallback::always_masked() }
+    const ALWAYS_MASKED: bool = KernelFallback::ALWAYS_MASKED;
 
     #[inline(always)]
     fn nc() -> usize { archparam::C_NC }
@@ -99,9 +97,7 @@ impl GemmKernel for KernelAvx2 {
     type NRTy = U4;
 
     const ALIGNMENT: usize = 32;
-
-    #[inline(always)]
-    fn always_masked() -> bool { KernelFallback::always_masked() }
+    const ALWAYS_MASKED: bool = KernelFallback::ALWAYS_MASKED;
 
     #[inline(always)]
     fn nc() -> usize { archparam::C_NC }
@@ -132,9 +128,7 @@ impl GemmKernel for KernelNeon {
     type NRTy = U2;
 
     const ALIGNMENT: usize = 16;
-
-    #[inline(always)]
-    fn always_masked() -> bool { KernelFallback::always_masked() }
+    const ALWAYS_MASKED: bool = KernelFallback::ALWAYS_MASKED;
 
     #[inline(always)]
     fn nc() -> usize { archparam::C_NC }
@@ -163,8 +157,7 @@ impl GemmKernel for KernelFallback {
     type MRTy = U4;
     type NRTy = U2;
 
-    #[inline(always)]
-    fn always_masked() -> bool { true }
+    const ALWAYS_MASKED: bool = true;
 
     #[inline(always)]
     fn nc() -> usize { archparam::C_NC }

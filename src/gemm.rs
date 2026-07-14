@@ -439,7 +439,7 @@ unsafe fn gemm_packed<K>(nc: usize, kc: usize, mc: usize,
                 // GEMM KERNEL
                 // NOTE: For the rust kernels, it performs better to simply
                 // always use the masked kernel function!
-                if K::always_masked() || nr_ < nr || mr_ < mr {
+                if K::ALWAYS_MASKED || nr_ < nr || mr_ < mr {
                     masked_kernel::<_, K>(kc, alpha, app.ptr(), bpp.ptr(),
                                           beta, c.ptr(), rsc, csc,
                                           mr_, nr_, mask_buf);

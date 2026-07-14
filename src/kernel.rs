@@ -27,7 +27,7 @@ pub(crate) trait GemmKernel {
     const ALIGNMENT: usize = 0;
 
     /// Whether to always use the masked wrapper around the kernel.
-    fn always_masked() -> bool;
+    const ALWAYS_MASKED: bool = true;
 
     // These should ideally be tuned per kernel and per microarch
     #[inline(always)]
@@ -81,8 +81,8 @@ pub(crate) trait GemmKernel {
     ///   read from c, its value is to be treated as if it was zero.
     ///
     /// When masked, the kernel is always called with β=0 but α is passed
-    /// as usual. (This is only useful information if you return `true` from
-    /// `always_masked`.)
+    /// as usual. (This is only useful information if you have `true` in
+    /// `ALWAYS_MASKED`.)
     unsafe fn kernel(
         k: usize,
         alpha: Self::Elem,

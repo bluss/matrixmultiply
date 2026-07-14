@@ -41,7 +41,7 @@ num_cpus = { version = "1.13", optional = true }
 
 [dev-dependencies]
 bencher = "0.1.2"
-itertools = "0.8"
+itertools = "0.15"
 
 [features]
 default = ["std", "avx512"]
